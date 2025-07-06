@@ -35,7 +35,7 @@ class Agent:
         
         dr, dc = self.directions[direction]
         row, col = self.position
-        if (0 <= row + dr < 10 and 0 <= col + dc < 10):
+        if (0 <= row + dr < 10 and 0 <= col + dc < 10):   #check it (as it constrains the world size to 10x10)
             return (row + dr, col + dc)
         else:
             print("Invalid move: Out of the world!!")
