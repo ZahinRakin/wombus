@@ -91,3 +91,63 @@ class Agent:
         self.has_gold = False
         self.is_alive = True
         self.score = 0
+
+
+class AgentConfig:
+    
+    def __init__(self):
+        # Default configuration
+        self.starting_position = (9, 0)
+        self.movement_cost = 1
+        self.arrow_cost = 10
+        self.gold_reward = 1000
+        self.death_penalty = 1000
+        self.win_bonus = 0
+        
+        # Visual settings
+        self.agent_symbol = 'A'
+        self.trail_symbol = '.'
+        
+    def get_config(self):
+        return {
+            'starting_position': self.starting_position,
+            'movement_cost': self.movement_cost,
+            'arrow_cost': self.arrow_cost,
+            'gold_reward': self.gold_reward,
+            'death_penalty': self.death_penalty,
+            'win_bonus': self.win_bonus,
+            'agent_symbol': self.agent_symbol,
+            'trail_symbol': self.trail_symbol
+        }
+    
+    def set_starting_position(self, position):
+        self.starting_position = position
+    
+    def set_costs_and_rewards(self, movement_cost=None, arrow_cost=None, 
+                              gold_reward=None, death_penalty=None, win_bonus=None):
+        if movement_cost is not None:
+            self.movement_cost = movement_cost
+        if arrow_cost is not None:
+            self.arrow_cost = arrow_cost
+        if gold_reward is not None:
+            self.gold_reward = gold_reward
+        if death_penalty is not None:
+            self.death_penalty = death_penalty
+        if win_bonus is not None:
+            self.win_bonus = win_bonus
+
+
+# for checiking is everything ok?
+if __name__ == "__main__":
+    config = AgentConfig()
+    agent = Agent(config.starting_position)
+    
+    print("Agent created:")
+    print(f"Status: {agent.get_status()}")
+    print(f"Config: {config.get_config()}")
+    
+    # Test movement
+    print(f"\nMoving up from {agent.get_position()}")
+    new_pos = agent.move('up')
+    print(f"New position: {new_pos}")
+    print(f"Status: {agent.get_status()}")
