@@ -33,7 +33,7 @@ class Agent:
         if direction not in self.directions:
             return None
         
-        dr, dc = self.directions[direction]
+        dr, dc = self.directions[direction] # dr = delta_row and dc = delta_column
         row, col = self.position
         if (0 <= row + dr < 10 and 0 <= col + dc < 10):   #check it (as it constrains the world size to 10x10)
             return (row + dr, col + dc)
