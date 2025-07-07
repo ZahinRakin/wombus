@@ -187,18 +187,56 @@ class WumpusGame:
 
 
 # For testing purposes
-if __name__ == "__main__":
+def test_all_game_methods():
     try:
         game = WumpusGame()
-        print("Game initialized successfully!")
-        print(f"World info: {game.get_world_info()}")
+        print("\n✅ Game initialized successfully.")
         
+        # Print initial world info
+        print("\n🌍 World info:")
+        print(game.get_world_info())
+        
+        # Print initial board and status
+        print("\n📋 Initial Board:")
         game.print_board()
         game.print_status()
         
-        success, message = game.move_agent('up')
-        print(f"\nMove result: {success}, {message}")
+        # Test moving in all directions
+        for direction in ['up', 'down', 'left', 'right']:
+            success, msg = game.move_agent(direction)
+            print(f"\n➡️ Move {direction}: {success}, {msg}")
+            game.print_board()
+            game.print_status()
+            if game.game_over:
+                print("💥 Game ended due to hazard.")
+                break
+        
+        # Try grabbing gold
+        print("\n🪙 Try grabbing gold:")
+        success, msg = game.grab_gold()
+        print(f"Grab gold: {success}, {msg}")
+        
+        # Try shooting arrow in all directions
+        for direction in ['up', 'down', 'left', 'right']:
+            success, msg = game.shoot_arrow(direction)
+            print(f"\n🏹 Shoot {direction}: {success}, {msg}")
+            if not success:
+                break  # No more arrows
+        
+        # Print final status
+        print("\n📊 Final Status:")
         game.print_status()
         
+        # Reset game
+        print("\n🔄 Resetting game...")
+        game.reset_game()
+        game.print_board()
+        game.print_status()
+    
     except Exception as e:
-        print(f"Error initializing game: {e}")
+        print(f"\n❌ Error during testing: {e}")
+
+
+if __name__ == "__main__":
+    test_all_game_methods()
+
