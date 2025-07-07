@@ -38,11 +38,11 @@ class WumpusGame:
         for row, col in self.agent.visited_cells:
             if (row, col) != self.agent.get_position():
                 if self.original_world[row][col] == '-':
-                    self.game_world[row][col] = self.agent_config.trail_symbol
+                    self.game_world[row][col] = self.agent.agent_config.trail_symbol
         
         # Place agent
         row, col = self.agent.get_position()
-        self.game_world[row][col] = self.agent_config.agent_symbol
+        self.game_world[row][col] = self.agent.agent_config.agent_symbol
     
     def print_board(self):
         """Print the current game board"""
@@ -146,11 +146,9 @@ class WumpusGame:
         if self.game_over:
             return False, "Game is over!"
         
-        if not self.agent.has_arrow:
+        if not self.agent.shoot_arrow():
             return False, "You don't have an arrow!"
         
-        # Shoot arrow
-        self.agent.shoot_arrow()
         
         # Check if arrow hits wumpus
         row, col = self.agent.get_position()
