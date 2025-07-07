@@ -25,8 +25,8 @@ COLORS = {
     'ui_bg': (35, 40, 55)
 }
 
-class WumpusGame:
-    def __init__(self, board_file='board.txt'):
+class wompus_graphics:
+    def __init__(self):
         pygame.init()
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption("Wumpus World - Enhanced Edition")
@@ -36,36 +36,9 @@ class WumpusGame:
         self.font_medium = pygame.font.Font(None, 24)
         self.font_small = pygame.font.Font(None, 18)
         
-        # Game state
-        self.board = self.load_board(board_file)
-        self.player_pos = (9, 0)
-        self.has_gold = False
-        self.game_over = False
-        self.victory_achieved = False
-        self.animation_time = 0
-        
         # Visual effects
         self.particle_effects = []
         
-    def load_board(self, filename):
-        try:
-            with open(filename) as f:
-                return [list(line.strip()) for line in f.readlines()]
-        except FileNotFoundError:
-            # Create a default board if file doesn't exist
-            return [
-                ['-', '-', '-', '-', 'W', '-', '-', '-', '-', '-'],
-                ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
-                ['-', '-', '-', '-', '-', '-', 'G', '-', '-', '-'],
-                ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
-                ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
-                ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
-                ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
-                ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
-                ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
-                ['P', '-', '-', '-', '-', '-', '-', '-', '-', '-']
-            ]
-
     def draw_glowing_circle(self, surface, center, radius, color, glow_color):
         """Draw a circle with a glowing effect"""
         # Draw multiple circles with decreasing alpha for glow effect
@@ -212,7 +185,7 @@ class WumpusGame:
         controls_surface = self.font_small.render(controls_text, True, COLORS['ui_text'])
         self.screen.blit(controls_surface, (WIDTH - 220, ui_y + 75))
 
-    def draw_board(self):
+    def draw_board(self, board: list[list[str]]):
         """Draw the entire game board"""
         self.screen.fill(COLORS['background'])
         
@@ -230,7 +203,7 @@ class WumpusGame:
         # Draw tiles
         for y in range(ROWS):
             for x in range(COLS):
-                tile = self.board[y][x]
+                tile = board[y][x]
                 if tile != '-':
                     self.draw_tile(x, y, tile)
         
@@ -239,95 +212,125 @@ class WumpusGame:
         
         pygame.display.flip()
 
-    def move(self, dx, dy):
-        if self.game_over or self.victory_achieved:
-            return
-            
-        x, y = self.player_pos
-        nx, ny = x + dx, y + dy
-        
-        if 0 <= nx < COLS and 0 <= ny < ROWS:
-            # Check what's at the new position
-            target_tile = self.board[ny][nx]
-            
-            # Clear current position
-            self.board[y][x] = '-'
-            
-            # Handle special tiles
-            if target_tile == 'W':
-                self.die()
-                return
-            elif target_tile == 'G':
-                self.has_gold = True
-                
-            # Move player
-            self.player_pos = (nx, ny)
-            self.board[ny][nx] = 'P'
-            
-            # Check for victory condition (return to start with gold)
-            if self.has_gold and nx == 0 and ny == ROWS - 1:
-                self.victory()
-            
-            self.draw_board()
-            time.sleep(0.1)
-
-    def move_up(self): self.move(0, -1)
-    def move_down(self): self.move(0, 1)
-    def move_left(self): self.move(-1, 0)
-    def move_right(self): self.move(1, 0)
-
     def die(self):
-        x, y = self.player_pos
-        self.board[y][x] = 'X'
-        self.game_over = True
-        self.draw_board()
-        time.sleep(1)
+        """Display a sad animation after death"""
+        # Create a dark overlay
+        overlay = pygame.Surface((WIDTH, HEIGHT))
+        overlay.set_alpha(150)
+        overlay.fill((0, 0, 0))
+        
+        # Animation loop
+        for frame in range(60):
+            self.screen.blit(overlay, (0, 0))
+            
+            # Pulsing red effect
+            alpha = int(100 + 50 * math.sin(frame * 0.3))
+            red_surf = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+            red_surf.fill((255, 0, 0, alpha))
+            self.screen.blit(red_surf, (0, 0))
+            
+            # Death message
+            death_text = self.font_large.render("YOU DIED", True, (255, 255, 255))
+            text_rect = death_text.get_rect(center=(WIDTH//2, HEIGHT//2))
+            self.screen.blit(death_text, text_rect)
+            
+            # Sad face
+            face_center = (WIDTH//2, HEIGHT//2 + 60)
+            pygame.draw.circle(self.screen, (255, 255, 255), face_center, 30, 3)
+            # Eyes
+            pygame.draw.circle(self.screen, (255, 255, 255), (face_center[0] - 10, face_center[1] - 10), 3)
+            pygame.draw.circle(self.screen, (255, 255, 255), (face_center[0] + 10, face_center[1] - 10), 3)
+            # Sad mouth
+            pygame.draw.arc(self.screen, (255, 255, 255), 
+                        (face_center[0] - 15, face_center[1] + 5, 30, 20), 
+                        0, math.pi, 3)
+            
+            pygame.display.flip()
+            time.sleep(0.05)
 
     def victory(self):
-        x, y = self.player_pos
-        self.board[y][x] = 'V'
-        self.victory_achieved = True
-        self.draw_board()
-        time.sleep(1)
+        """Display a happy animation after winning"""
+        # Create a bright overlay
+        overlay = pygame.Surface((WIDTH, HEIGHT))
+        overlay.set_alpha(100)
+        overlay.fill((255, 255, 255))
+        
+        # Animation loop
+        for frame in range(90):
+            self.screen.blit(overlay, (0, 0))
+            
+            # Golden sparkles
+            for i in range(20):
+                sparkle_x = (frame * 3 + i * 30) % WIDTH
+                sparkle_y = 50 + 30 * math.sin(frame * 0.1 + i)
+                pygame.draw.circle(self.screen, (255, 215, 0), (int(sparkle_x), int(sparkle_y)), 3)
+            
+            # Victory message
+            victory_text = self.font_large.render("VICTORY!", True, (50, 255, 50))
+            text_rect = victory_text.get_rect(center=(WIDTH//2, HEIGHT//2))
+            self.screen.blit(victory_text, text_rect)
+            
+            # Happy face
+            face_center = (WIDTH//2, HEIGHT//2 + 60)
+            pygame.draw.circle(self.screen, (255, 255, 255), face_center, 30, 3)
+            # Eyes
+            pygame.draw.circle(self.screen, (255, 255, 255), (face_center[0] - 10, face_center[1] - 10), 3)
+            pygame.draw.circle(self.screen, (255, 255, 255), (face_center[0] + 10, face_center[1] - 10), 3)
+            # Happy mouth
+            pygame.draw.arc(self.screen, (255, 255, 255), 
+                        (face_center[0] - 15, face_center[1] + 5, 30, 15), 
+                        math.pi, 2 * math.pi, 3)
+            
+            pygame.display.flip()
+            time.sleep(0.03)
 
-    def run(self):
-        """Main game loop with keyboard controls"""
-        running = True
-        clock = pygame.time.Clock()
+    def options(self):
+        """Display options menu: restart, take snapshot, quit"""
+        # Create menu overlay
+        menu_overlay = pygame.Surface((WIDTH, HEIGHT))
+        menu_overlay.set_alpha(200)
+        menu_overlay.fill((0, 0, 0))
+        self.screen.blit(menu_overlay, (0, 0))
         
-        self.draw_board()
+        # Menu background
+        menu_rect = pygame.Rect(WIDTH//4, HEIGHT//4, WIDTH//2, HEIGHT//2)
+        pygame.draw.rect(self.screen, COLORS['ui_bg'], menu_rect)
+        pygame.draw.rect(self.screen, COLORS['tile_border'], menu_rect, 3)
         
-        while running:
+        # Menu title
+        title_text = self.font_large.render("OPTIONS", True, COLORS['ui_text'])
+        title_rect = title_text.get_rect(center=(WIDTH//2, HEIGHT//2 - 80))
+        self.screen.blit(title_text, title_rect)
+        
+        # Menu options
+        options_text = [
+            "R - Restart Game",
+            "S - Take Snapshot",
+            "Q - Quit Game",
+            "ESC - Close Menu"
+        ]
+        
+        for i, option in enumerate(options_text):
+            option_surface = self.font_medium.render(option, True, COLORS['ui_text'])
+            option_rect = option_surface.get_rect(center=(WIDTH//2, HEIGHT//2 - 30 + i * 35))
+            self.screen.blit(option_surface, option_rect)
+        
+        pygame.display.flip()
+        
+        # Wait for user input
+        waiting = True
+        while waiting:
             for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    running = False
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_UP or event.key == pygame.K_w:
-                        self.move_up()
-                    elif event.key == pygame.K_DOWN or event.key == pygame.K_s:
-                        self.move_down()
-                    elif event.key == pygame.K_LEFT or event.key == pygame.K_a:
-                        self.move_left()
-                    elif event.key == pygame.K_RIGHT or event.key == pygame.K_d:
-                        self.move_right()
-                    elif event.key == pygame.K_r and (self.game_over or self.victory_achieved):
-                        # Restart game
-                        self.__init__()
-                        self.draw_board()
-            
-            # Redraw for animations
-            if not self.game_over and not self.victory_achieved:
-                self.draw_board()
-            
-            clock.tick(60)  # 60 FPS for smooth animations
-        
-        pygame.quit()
-
-
-def main():
-    game = WumpusGame('board.txt')
-    game.run()
-
-
-if __name__ == "__main__":
-    main()
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_r:
+                        return "restart"
+                    elif event.key == pygame.K_s:
+                        # Take screenshot
+                        pygame.image.save(self.screen, f"wumpus_snapshot_{int(time.time())}.png")
+                        return "snapshot"
+                    elif event.key == pygame.K_q:
+                        return "quit"
+                    elif event.key == pygame.K_ESCAPE:
+                        return "close"
+                elif event.type == pygame.QUIT:
+                    return "quit"
