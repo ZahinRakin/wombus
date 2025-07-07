@@ -4,17 +4,17 @@ from agent import Agent, AgentConfig
 
 class WumpusGame:
     
-    def __init__(self, world_file='world.txt', agent_config=None):
+    def __init__(self, world_file='world.txt', agent: Agent = None):
         # Load world
         self.world_loader = WorldLoader(world_file)
         if not self.world_loader.get_board():
             raise ValueError("Failed to load world!")
         
         # Setup agent
-        if agent_config is None:
-            agent_config = AgentConfig()
-        self.agent_config = agent_config
-        self.agent = Agent(agent_config.starting_position)
+        if not agent:
+            agent = Agent(AgentConfig())
+        self.agent = agent
+        
         
         # Game state
         self.original_world = self.world_loader.get_board()
@@ -28,7 +28,7 @@ class WumpusGame:
     
     def _place_agent_on_board(self):
         row, col = self.agent.get_position()
-        self.game_world[row][col] = self.agent_config.agent_symbol
+        self.game_world[row][col] = self.agent.agent_config.agent_symbol
     
     def _update_board_display(self):
         # Reset board to original state
