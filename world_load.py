@@ -3,7 +3,7 @@ import random
 
 class WorldLoader:
     
-    def __init__(self, file_path, world_size=(10, 10)):
+    def __init__(self, file_path = "world.txt", world_size=(10, 10)):
         self.file_path = file_path
         self.world_size = world_size
         self.board = self.load_world()
@@ -28,27 +28,36 @@ class WorldLoader:
 
     def generate_random_board(self, filename='board.txt'):
         rows, cols = 10, 10
-        chars = ['P', 'W', 'G', '-']
-        board = []
-
-        for _ in range(rows):
-            row = ['-'] * cols
-            num_items = random.randint(1, 4)  # place 1 to 4 items per row
-            for _ in range(num_items):
-                char = random.choice(['P', 'W', 'G'])
+        chars = ['W', 'G', '-', 'P']
+        board = [['-' for _ in range(10)] for _ in range(10)]
+        gold_appeared = False
+        
+        board[9][0] = 'A' # I should be able to change the player position.
+        
+        for i in range(rows):
+            # row = ['-'] * cols
+            num_items = random.randint(0, 4)  # place 1 to 4 items per row
+            for j in range(num_items):
+                if not gold_appeared:
+                    char = random.choice(['P', 'W', 'G'])
+                else:
+                    char = random.choice(['P', 'W'])
                 pos = random.randint(0, cols - 1)
-                row[pos] = char
-            board.append(''.join(row))
+                if board[i][pos] == '-':
+                    board[i][pos] = char
+                    if char == 'G':
+                        gold_appeared = True
 
         with open(filename, 'w') as f:
-            f.write('\n'.join(board))
+            for row in board:
+                f.write(''.join(row) + '\n')
 
         
     # Get a copy of the board
     def get_board(self):
         if self.board:
-            return [row[:] for row in self.board]
-        return None
+            return [row[:] for row in self.board] # i am getting error here why
+        return self.load_world()
     
     def get_cell(self, row, col):
         if self.board and 0 <= row < len(self.board) and 0 <= col < len(self.board[0]):
