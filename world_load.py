@@ -7,24 +7,6 @@ class WorldLoader:
         self.file_path = file_path
         self.world_size = world_size
         self.board = self.load_world()
-    
-    def load_world(self):
-        try:
-            with open(self.file_path, 'r') as file:
-                board_str = file.read()
-                rows = board_str.strip().split('\n')
-                board = [[char for char in row] for row in rows]
-                
-                if (len(board), len(board[0])) != self.world_size:
-                    raise ValueError(f"Board must be of shape {self.world_size}")
-                
-                return board
-        except FileNotFoundError:
-            print(f"Error: File '{self.file_path}' not found!")
-            return None
-        except Exception as e:
-            print(f"An unexpected error occurred when reading the file: {e}")
-            return None
 
     def generate_random_board(self, filename='board.txt'):
         rows, cols = 10, 10
@@ -51,6 +33,25 @@ class WorldLoader:
         with open(filename, 'w') as f:
             for row in board:
                 f.write(''.join(row) + '\n')
+    
+
+    def load_world(self):
+        try:
+            with open(self.file_path, 'r') as file:
+                board_str = file.read()
+                rows = board_str.strip().split('\n')
+                board = [[char for char in row] for row in rows]
+                
+                if (len(board), len(board[0])) != self.world_size:
+                    raise ValueError(f"Board must be of shape {self.world_size}")
+                
+                return board
+        except FileNotFoundError:
+            print(f"Error: File '{self.file_path}' not found!")
+            return None
+        except Exception as e:
+            print(f"An unexpected error occurred when reading the file: {e}")
+            return None
 
         
     # Get a copy of the board
