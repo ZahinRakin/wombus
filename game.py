@@ -1,3 +1,4 @@
+import time
 from world_load import WorldLoader
 from agent import Agent, AgentConfig
 from graphical_control import wompus_graphics
@@ -47,12 +48,12 @@ class WumpusGame:
         self.game_world[row][col] = self.agent.agent_config.agent_symbol
         
         # graphics
-        self.graphics.draw_board(self.game_world)
+        self.graphics.draw_board(self.game_world, self.agent)
     
     def print_board(self):
         """Print the current game board"""
         # graphics
-        self.graphics.draw_board(self.game_world)
+        self.graphics.draw_board(self.game_world, self.agent)
         # printing on terminal
         self._update_board_display()
         print("\nCurrent Game State:")
@@ -110,18 +111,23 @@ class WumpusGame:
         row, col = new_position
         cell_content = self.original_world[row][col]
         
+        self._update_board_display() # is this needed?
+        
         if cell_content == 'P':
             self.agent.die()
             self.game_over = True
+            self.graphics.animate_death()
             return False, "💀 You fell into a pit! Game Over!"
         elif cell_content == 'W':
             self.agent.die()
             self.game_over = True
+            self.graphics.animate_death()
             return False, "💀 You were eaten by the Wumpus! Game Over!"
         
         if self.agent.has_won():
             self.won = True
             self.game_over = True
+            self.graphics.animate_victory()
             return True, "🎉 Congratulations! You won the game!"
         
         return True, "Move successful"
@@ -184,6 +190,8 @@ class WumpusGame:
         self.game_over = False
         self.won = False
         self._place_agent_on_board()
+        # graphics
+        self.graphics.draw_board(self.game_world, self.agent)
     
     def get_world_info(self):
         return {
@@ -207,6 +215,7 @@ def test_all_game_methods():
         # Print initial board and status
         print("\n📋 Initial Board:")
         game.print_board()
+        time.sleep(1)           # waiting
         game.print_status()
         
         # Test moving in all directions
@@ -214,6 +223,7 @@ def test_all_game_methods():
             success, msg = game.move_agent(direction)
             print(f"\n➡️ Move {direction}: {success}, {msg}")
             game.print_board()
+            time.sleep(1)               # waiting
             game.print_status()
             if game.game_over:
                 print("💥 Game ended due to hazard.")
@@ -223,7 +233,7 @@ def test_all_game_methods():
         print("\n🪙 Try grabbing gold:")
         success, msg = game.grab_gold()
         print(f"Grab gold: {success}, {msg}")
-        
+        time.sleep(5) # waiting
         # Try shooting arrow in all directions
         for direction in ['up', 'down', 'left', 'right']:
             success, msg = game.shoot_arrow(direction)

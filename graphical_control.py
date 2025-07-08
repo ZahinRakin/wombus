@@ -2,6 +2,8 @@ import pygame
 import time
 import math
 
+from agent import Agent, AgentConfig
+
 # Enhanced visual settings
 TILE_SIZE = 60
 ROWS, COLS = 10, 10
@@ -26,7 +28,9 @@ COLORS = {
     'ui_bg': (35, 40, 55),
     'arrow': (255, 140, 0),
     'breeze': (173, 216, 230),
-    'stench': (144, 238, 144)
+    'stench': (144, 238, 144),
+    'trail': (100, 100, 100),
+    'trail_glow': (150, 150, 150),
 }
 
 class wompus_graphics:
@@ -39,17 +43,6 @@ class wompus_graphics:
         self.font_large = pygame.font.Font(None, 36)
         self.font_medium = pygame.font.Font(None, 24)
         self.font_small = pygame.font.Font(None, 18)
-        
-        # Game state variables
-        self.player_pos = (0, 0)
-        self.has_gold = False
-        self.victory_achieved = False
-        self.game_over = False
-        self.animation_time = 0
-        self.arrows_count = 1
-        
-        # Visual effects
-        self.particle_effects = []
         
     def draw_glowing_circle(self, surface, center, radius, color, glow_color):
         """Draw a circle with a glowing effect"""
@@ -138,6 +131,53 @@ class wompus_graphics:
         ]
         pygame.draw.polygon(surface, COLORS['arrow'], arrow_points)
 
+    def draw_wumpus(self, surface, center):
+        self.draw_pulsing_effect(surface, center, 25, COLORS['wumpus_glow'])
+        self.draw_glowing_circle(surface, center, 20, COLORS['wumpus'], COLORS['wumpus_glow'])
+        
+        # Add menacing eyes
+        eye1_pos = (center[0] - 6, center[1] - 8)
+        eye2_pos = (center[0] + 6, center[1] - 8)
+        pygame.draw.circle(surface, (255, 0, 0), eye1_pos, 3)
+        pygame.draw.circle(surface, (255, 0, 0), eye2_pos, 3)
+
+    def draw_agent(self, surface, center):
+        self.draw_particle_trail(surface, center, COLORS['player'])
+        self.draw_glowing_circle(surface, center, 18, COLORS['player'], COLORS['player_glow'])
+        
+        # Add player "eye" or direction indicator
+        eye_pos = (center[0] + 5, center[1] - 5)
+        pygame.draw.circle(surface, (255, 255, 255), eye_pos, 3)
+
+    def draw_gold(self, surface, center):
+        self.draw_pulsing_effect(surface, center, 22, COLORS['gold_glow'])
+        # Draw diamond shape for gold
+        diamond_points = [
+            (center[0], center[1] - 15),
+            (center[0] + 12, center[1]),
+            (center[0], center[1] + 15),
+            (center[0] - 12, center[1])
+        ]
+        pygame.draw.polygon(surface, COLORS['gold'], diamond_points)
+        pygame.draw.polygon(surface, COLORS['gold_glow'], diamond_points, 2)
+        
+        # Add sparkle effect
+        for i in range(4):
+            sparkle_x = center[0] + math.sin(self.animation_time * 4 + i * 1.5) * 20
+            sparkle_y = center[1] + math.cos(self.animation_time * 4 + i * 1.5) * 20
+            pygame.draw.circle(surface, (255, 255, 255), (int(sparkle_x), int(sparkle_y)), 2)
+
+    def draw_trail(self, surface, center):
+        # Draw a subtle dot to mark visited tiles
+        pygame.draw.circle(surface, COLORS['trail'], center, 4)
+        
+        # Add a subtle glow effect around the dot
+        pygame.draw.circle(surface, COLORS['trail_glow'], center, 8, 2)
+        
+        # Optional: Add a pulsing effect to make it more visible
+        pulse_radius = 6 + int(2 * math.sin(self.animation_time * 3))
+        pygame.draw.circle(surface, COLORS['trail'], center, pulse_radius, 1)
+
     def draw_tile(self, x, y, tile_type):
         """Draw an individual tile with enhanced graphics"""
         pixel_x = x * TILE_SIZE
@@ -152,47 +192,16 @@ class wompus_graphics:
         pygame.draw.rect(self.screen, COLORS['tile_border'], tile_rect, 2)
         
         # Draw tile contents based on type
-        if tile_type == 'P':  # Player
-            self.draw_particle_trail(self.screen, center, COLORS['player'])
-            self.draw_glowing_circle(self.screen, center, 18, COLORS['player'], COLORS['player_glow'])
-            
-            # Add player "eye" or direction indicator
-            eye_pos = (center[0] + 5, center[1] - 5)
-            pygame.draw.circle(self.screen, (255, 255, 255), eye_pos, 3)
-            
-        elif tile_type == 'A':  # Agent (alternative player representation)
-            self.draw_player_agent(center)
+        if tile_type == 'A': # player or agent 
+            self.draw_agent(self.screen, center)
             
         elif tile_type == 'W':  # Wumpus
-            self.draw_pulsing_effect(self.screen, center, 25, COLORS['wumpus_glow'])
-            self.draw_glowing_circle(self.screen, center, 20, COLORS['wumpus'], COLORS['wumpus_glow'])
-            
-            # Add menacing eyes
-            eye1_pos = (center[0] - 6, center[1] - 8)
-            eye2_pos = (center[0] + 6, center[1] - 8)
-            pygame.draw.circle(self.screen, (255, 0, 0), eye1_pos, 3)
-            pygame.draw.circle(self.screen, (255, 0, 0), eye2_pos, 3)
+            self.draw_wumpus(self.screen, center)
             
         elif tile_type == 'G':  # Gold
-            self.draw_pulsing_effect(self.screen, center, 22, COLORS['gold_glow'])
-            
-            # Draw diamond shape for gold
-            diamond_points = [
-                (center[0], center[1] - 15),
-                (center[0] + 12, center[1]),
-                (center[0], center[1] + 15),
-                (center[0] - 12, center[1])
-            ]
-            pygame.draw.polygon(self.screen, COLORS['gold'], diamond_points)
-            pygame.draw.polygon(self.screen, COLORS['gold_glow'], diamond_points, 2)
-            
-            # Add sparkle effect
-            for i in range(4):
-                sparkle_x = center[0] + math.sin(self.animation_time * 4 + i * 1.5) * 20
-                sparkle_y = center[1] + math.cos(self.animation_time * 4 + i * 1.5) * 20
-                pygame.draw.circle(self.screen, (255, 255, 255), (int(sparkle_x), int(sparkle_y)), 2)
+            self.draw_gold(self.screen, center)
                 
-        elif tile_type == 'O':  # Pit
+        elif tile_type == 'P':  # Pit
             self.draw_pit(self.screen, center)
             
         elif tile_type == 'B':  # Breeze
@@ -204,96 +213,77 @@ class wompus_graphics:
         elif tile_type == 'R':  # Arrow
             self.draw_arrow(self.screen, center)
             
-        elif tile_type == 'X':  # Dead
-            self.draw_glowing_circle(self.screen, center, 20, COLORS['dead'], COLORS['dead'])
+        # elif tile_type == 'X':  # Dead
+        #     self.draw_glowing_circle(self.screen, center, 20, COLORS['dead'], COLORS['dead'])
             
-            # Draw X
-            pygame.draw.line(self.screen, (255, 255, 255), 
-                           (center[0] - 12, center[1] - 12), 
-                           (center[0] + 12, center[1] + 12), 4)
-            pygame.draw.line(self.screen, (255, 255, 255), 
-                           (center[0] + 12, center[1] - 12), 
-                           (center[0] - 12, center[1] + 12), 4)
+        #     # Draw X
+        #     pygame.draw.line(self.screen, (255, 255, 255), 
+        #                    (center[0] - 12, center[1] - 12), 
+        #                    (center[0] + 12, center[1] + 12), 4)
+        #     pygame.draw.line(self.screen, (255, 255, 255), 
+        #                    (center[0] + 12, center[1] - 12), 
+        #                    (center[0] - 12, center[1] + 12), 4)
                            
-        elif tile_type == 'V':  # Victory
-            self.draw_pulsing_effect(self.screen, center, 30, COLORS['victory'], math.pi)
-            self.draw_glowing_circle(self.screen, center, 22, COLORS['victory'], COLORS['victory'])
+        # elif tile_type == 'V':  # Victory
+        #     self.draw_pulsing_effect(self.screen, center, 30, COLORS['victory'], math.pi)
+        #     self.draw_glowing_circle(self.screen, center, 22, COLORS['victory'], COLORS['victory'])
             
-            # Draw crown or star
-            star_points = []
-            for i in range(5):
-                angle = i * 2 * math.pi / 5 - math.pi / 2
-                outer_x = center[0] + math.cos(angle) * 15
-                outer_y = center[1] + math.sin(angle) * 15
-                star_points.append((outer_x, outer_y))
+        #     # Draw crown or star
+        #     star_points = []
+        #     for i in range(5):
+        #         angle = i * 2 * math.pi / 5 - math.pi / 2
+        #         outer_x = center[0] + math.cos(angle) * 15
+        #         outer_y = center[1] + math.sin(angle) * 15
+        #         star_points.append((outer_x, outer_y))
                 
-                angle += math.pi / 5
-                inner_x = center[0] + math.cos(angle) * 8
-                inner_y = center[1] + math.sin(angle) * 8
-                star_points.append((inner_x, inner_y))
+        #         angle += math.pi / 5
+        #         inner_x = center[0] + math.cos(angle) * 8
+        #         inner_y = center[1] + math.sin(angle) * 8
+        #         star_points.append((inner_x, inner_y))
             
-            pygame.draw.polygon(self.screen, (255, 255, 255), star_points)
+        #     pygame.draw.polygon(self.screen, (255, 255, 255), star_points)
         
-        elif tile_type == '.':  # Empty tile with subtle effect
-            self.draw_particle_trail(self.screen, center, COLORS['tile_empty'])
+        elif tile_type == '.':  # trails of wumpus
+            self.draw_trail(self.screen, center)
 
-    def draw_player_agent(self, center):
-        """Draw the player as an agent with enhanced graphics"""
-        # Draw body
-        self.draw_glowing_circle(self.screen, center, 16, COLORS['player'], COLORS['player_glow'])
-        
-        # Draw directional indicator (assuming facing right)
-        direction_x = center[0] + 12
-        direction_y = center[1]
-        pygame.draw.circle(self.screen, (255, 255, 255), (direction_x, direction_y), 4)
-        
-        # Draw eyes
-        eye1_pos = (center[0] - 4, center[1] - 6)
-        eye2_pos = (center[0] + 4, center[1] - 6)
-        pygame.draw.circle(self.screen, (255, 255, 255), eye1_pos, 2)
-        pygame.draw.circle(self.screen, (255, 255, 255), eye2_pos, 2)
-        
-        # Add a subtle pulsing effect
-        self.draw_pulsing_effect(self.screen, center, 20, COLORS['player_glow'], 0)
-
-    def draw_ui(self):
+    def draw_ui(self, 
+                has_gold: bool,
+                arrows_count: int,
+                player_pos: tuple,
+                status_text: str):
         """Draw the user interface"""
         ui_y = ROWS * TILE_SIZE
         ui_rect = pygame.Rect(0, ui_y, WIDTH, 100)
         pygame.draw.rect(self.screen, COLORS['ui_bg'], ui_rect)
         pygame.draw.line(self.screen, COLORS['tile_border'], (0, ui_y), (WIDTH, ui_y), 2)
         
-        # Game status
-        status_text = "WUMPUS WORLD"
-        if self.victory_achieved:
-            status_text = "VICTORY!"
-        elif self.game_over:
-            status_text = "GAME OVER"
-        
         status_surface = self.font_large.render(status_text, True, COLORS['ui_text'])
         self.screen.blit(status_surface, (10, ui_y + 10))
         
         # Gold status
-        gold_text = f"Gold: {'✓' if self.has_gold else '✗'}"
+        gold_text = f"Gold: {'✓' if has_gold else '✗'}"
         gold_surface = self.font_medium.render(gold_text, True, COLORS['ui_text'])
         self.screen.blit(gold_surface, (10, ui_y + 45))
         
         # Arrows count
-        arrows_text = f"Arrows: {self.arrows_count}"
+        arrows_text = f"Arrows: {arrows_count}"
         arrows_surface = self.font_medium.render(arrows_text, True, COLORS['ui_text'])
         self.screen.blit(arrows_surface, (120, ui_y + 45))
         
         # Position
-        pos_text = f"Position: ({self.player_pos[0]}, {self.player_pos[1]})"
+        pos_text = f"Position: ({player_pos[0]}, {player_pos[1]})"
         pos_surface = self.font_medium.render(pos_text, True, COLORS['ui_text'])
         self.screen.blit(pos_surface, (10, ui_y + 70))
         
         # Controls hint
-        controls_text = "Use arrow keys or WASD to move | SPACE to shoot | ESC for menu"
+        controls_text = "ESC for menu" #"Use arrow keys or WASD to move | SPACE to shoot | ESC for menu"
         controls_surface = self.font_small.render(controls_text, True, COLORS['ui_text'])
         self.screen.blit(controls_surface, (WIDTH - 400, ui_y + 75))
 
-    def draw_board(self, board: list[list[str]]):
+    def draw_board(self,
+                board: list[list[str]], 
+                agent: Agent = None, 
+                status_text: str = "Wumpus World"):
         """Draw the entire game board"""
         self.screen.fill(COLORS['background'])
         
@@ -316,19 +306,12 @@ class wompus_graphics:
                     self.draw_tile(x, y, tile)
         
         # Draw UI
-        self.draw_ui()
+        # self.draw_ui(status_text, has_gold, arrows_count, player_pos)
+        self.draw_ui(status_text = status_text, has_gold = agent.has_gold, arrows_count = agent.arrow_count, player_pos = agent.get_position())
         
         pygame.display.flip()
 
-    def update_game_state(self, player_pos, has_gold=False, victory=False, game_over=False, arrows=1):
-        """Update the game state variables"""
-        self.player_pos = player_pos
-        self.has_gold = has_gold
-        self.victory_achieved = victory
-        self.game_over = game_over
-        self.arrows_count = arrows
-
-    def die(self):
+    def animate_death(self):
         """Display a sad animation after death"""
         # Create a dark overlay
         overlay = pygame.Surface((WIDTH, HEIGHT))
@@ -364,7 +347,7 @@ class wompus_graphics:
             pygame.display.flip()
             time.sleep(0.05)
 
-    def victory(self):
+    def animate_victory(self):
         """Display a happy animation after winning"""
         # Create a bright overlay
         overlay = pygame.Surface((WIDTH, HEIGHT))
@@ -400,7 +383,13 @@ class wompus_graphics:
             pygame.display.flip()
             time.sleep(0.03)
 
-    def options(self):
+    # def take_screenshot(self):
+    #     # have to build later
+    
+    # def restart_game(self):
+    #     # have to build later
+
+    def display_options(self):
         """Display options menu: restart, take snapshot, quit"""
         # Create menu overlay
         menu_overlay = pygame.Surface((WIDTH, HEIGHT))
@@ -457,47 +446,52 @@ class wompus_graphics:
         """Clean up and close the graphics"""
         pygame.quit()
 
-# Example usage and testing
-if __name__ == "__main__":
-    # Create a simple test board
-    test_board = [
-        ['A', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
-        ['-', 'B', '-', '-', '-', '-', '-', '-', '-', '-'],
-        ['-', '-', 'O', '-', '-', '-', '-', '-', '-', '-'],
-        ['-', '-', '-', 'S', '-', '-', '-', '-', '-', '-'],
-        ['-', '-', '-', '-', 'W', '-', '-', '-', '-', '-'],
-        ['-', '-', '-', '-', '-', 'G', '-', '-', '-', '-'],
-        ['-', '-', '-', '-', '-', '-', 'R', '-', '-', '-'],
-        ['-', '-', '-', '-', '-', '-', '-', '.', '-', '-'],
-        ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
-        ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-']
-    ]
+# # Example usage and testing
+# if __name__ == "__main__":
+#     # Create a simple test board
+#     test_board = [
+#         ['A', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
+#         ['-', 'B', '-', '-', '-', '-', '-', '-', '-', '-'],
+#         ['-', '-', 'P', '-', '-', '-', '-', '-', '-', '-'],
+#         ['-', '-', '-', 'S', '-', '-', '-', '-', '-', '-'],
+#         ['-', '-', '-', '-', 'W', '-', '-', '-', '-', '-'],
+#         ['-', '-', '-', '-', '-', 'G', '-', '-', '-', '-'],
+#         ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
+#         ['-', '-', '-', '-', '-', '-', '-', '.', '-', '-'],
+#         ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
+#         ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-']
+#     ]
     
-    # Initialize graphics
-    graphics = wompus_graphics()
-    graphics.update_game_state((0, 0), has_gold=False, victory=False, game_over=False, arrows=1)
+#     # Initialize graphics
+#     graphics = wompus_graphics()
+    # graphics.update_game_state((0, 0), has_gold=False, victory=False, game_over=False, arrows=1)
     
-    # Main game loop for testing
-    clock = pygame.time.Clock()
-    running = True
+#     # Main game loop for testing
+#     clock = pygame.time.Clock()
+#     running = True
     
-    while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    result = graphics.options()
-                    if result == "quit":
-                        running = False
-                    elif result == "restart":
-                        print("Restart requested")
-                elif event.key == pygame.K_d:
-                    graphics.die()
-                elif event.key == pygame.K_v:
-                    graphics.victory()
+#     while running:
+#         # graphics.animate_death()
+#         # graphics.animate_victory()
+#         for event in pygame.event.get():
+#             if event.type == pygame.QUIT:
+#                 running = False
+#             elif event.type == pygame.KEYDOWN:
+#                 if event.key == pygame.K_ESCAPE:
+#                     result = graphics.display_options()
+#                     if result == "quit":
+#                         running = False
+#                     elif result == "restart":
+#                         print("Restart requested")
+#                 elif event.key == pygame.K_d:
+#                     graphics.animate_death()
+#                 elif event.key == pygame.K_v:
+#                     graphics.animate_victory()
         
-        graphics.draw_board(test_board)
-        clock.tick(60)
+#         graphics.draw_board(test_board, agent = Agent(AgentConfig()), status_text = "Wumpus World")
+#         clock.tick(60)
     
-    graphics.close()
+#     graphics.close()
+
+
+
