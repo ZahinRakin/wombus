@@ -7,7 +7,7 @@ from ..agent.agent import Agent, AgentConfig
 
 class WumpusCLI:
     def __init__(self, world_file: str = "worlds/default.world"):
-        self.game = WumpusGame(world_file, Agent(AgentConfig()))
+        self.game = WumpusGame(world_file, Agent(AgentConfig()), graphics=False)
         self.running = False
         self.commands = {
             'help': self._show_help,
@@ -95,7 +95,7 @@ class WumpusCLI:
             print("Usage: move <up|down|left|right>")
             return
             
-        success, message = self.game.move_agent(args[0])
+        success, message = self.game._move_agent(args[0])
         print(f"\n{message}")
         self._check_game_over()
 
@@ -105,12 +105,12 @@ class WumpusCLI:
             print("Usage: shoot <up|down|left|right>")
             return
             
-        success, message = self.game.shoot_arrow(args[0])
+        success, message = self.game._shoot_arrow(args[0])
         print(f"\n{message}")
 
     def _grab_gold(self, args: List[str] = None) -> None:
         """Handle gold grabbing"""
-        success, message = self.game.grab_gold()
+        success, message = self.game._grab_gold()
         print(f"\n{message}")
         self._check_game_over()
 

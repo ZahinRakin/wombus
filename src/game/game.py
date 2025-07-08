@@ -8,6 +8,7 @@ from ..agent.agent import Agent, AgentConfig
 from ..interface.graphical_control import WumpusGraphics
 
 class WumpusGame:
+
     def __init__(self, 
                  world_file: str = "worlds/default.world", 
                  agent: Agent = None,
@@ -77,6 +78,25 @@ class WumpusGame:
                     percepts.append("Stench")
                 elif cell == 'P' and "Breeze" not in percepts:
                     percepts.append("Breeze")
+
+    def get_world_info(self) -> Dict:
+        """Return complete world information"""
+        return {
+            'wumpus_positions': self._find_elements('W'),
+            'pit_positions': self._find_elements('P'),
+            'gold_positions': self._find_elements('G'),
+            'world_size': self.world_size,
+            'agent_position': self.agent.position
+        }
+
+    def _find_elements(self, element: str) -> List[Tuple[int, int]]:
+        """Find all positions of a specific element"""
+        positions = []
+        for i, row in enumerate(self.original_world):
+            for j, val in enumerate(row):
+                if val == element:
+                    positions.append((i, j))
+        return positions
         
         # Current cell
         if self.original_world[row][col] == 'G':
@@ -198,7 +218,7 @@ class WumpusGame:
             self.graphics.animate_victory()
         self._update_display("Victory!")
 
-    def get_game_state(self) -> Dict:
+    def get_game_status(self) -> Dict: # formerly get_game_state
         """Return complete game state"""
         agent_state = self.agent.get_status()
         return {
