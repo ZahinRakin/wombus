@@ -6,6 +6,19 @@ class KnowledgeBase:
     def __init__(self):
         # Safe locations (no pit or wumpus)
         self.prover = ResolutionProver()
+        # Add Wumpus–Pit mutual exclusivity
+        for x in range(10):
+            for y in range(10):
+                w = PropositionalLogic.to_propositional((x, y), 'W')
+                p = PropositionalLogic.to_propositional((x, y), 'P')
+                self.prover.add_clause([f"¬{w}", f"¬{p}"])  # ¬W ∨ ¬P = can't be both
+
+        # There is only ONE Wumpus — so at most one Wumpus cell
+        wumpus_symbols = [PropositionalLogic.to_propositional((x, y), 'W') for x in range(10) for y in range(10)]
+        for i in range(len(wumpus_symbols)):
+            for j in range(i + 1, len(wumpus_symbols)):
+                self.prover.add_clause([f"¬{wumpus_symbols[i]}", f"¬{wumpus_symbols[j]}"])  # ¬W_i ∨ ¬W_j
+
         self.safe_locations: Set[Tuple[int, int]] = set()
         
         # Possible hazard locations
@@ -26,6 +39,20 @@ class KnowledgeBase:
         """Update KB with new percepts at given position"""
         self.visited.add(position)
         self.percept_history[position] = percepts
+
+
+        if "Nothing" in percepts:
+            for neighbor in self._get_adjacent(position):
+                wumpus = PropositionalLogic.to_propositional(neighbor, 'W')
+                pit = PropositionalLogic.to_propositional(neighbor, 'P')
+                self.prover.add_clause([f"¬{wumpus}"])
+                self.prover.add_clause([f"¬{pit}"])
+                self.safe_locations.add(neighbor)
+        
+        print(f"[PROVER] Total clauses: {len(self.prover.clauses)}")
+
+
+
         
         # Mark current position as safe (since we're alive)
         self.safe_locations.add(position)
