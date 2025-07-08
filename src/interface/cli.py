@@ -123,7 +123,7 @@ class WumpusCLI:
 
     def _restart_game(self, args: List[str] = None) -> None:
         """Restart the game"""
-        self.game.reset_game()
+        self.game._reset_game()
         print("\nGame restarted!")
 
     def _quit_game(self, args: List[str] = None) -> None:

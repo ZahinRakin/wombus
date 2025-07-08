@@ -231,7 +231,7 @@ class WumpusGame:
             'wumpus_alive': 'W' in {cell for row in self.original_world for cell in row}
         }
 
-    def reset(self) -> None:
+    def _reset_game(self) -> None:
         """Reset game to initial state"""
         self.original_world = copy.deepcopy(self.world_loader.get_board())
         self.game_world = copy.deepcopy(self.original_world)
