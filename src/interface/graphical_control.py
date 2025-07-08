@@ -1,10 +1,13 @@
+# import random
 import pygame
 import time
 import math
+from typing import List, Tuple, Dict, Optional
+from pathlib import Path
+from ..agent.agent import Agent
+from ..environment.world_load import WorldLoader
 
-from agent import Agent, AgentConfig
-
-# Enhanced visual settings
+# Constants
 TILE_SIZE = 60
 ROWS, COLS = 10, 10
 WIDTH, HEIGHT = COLS * TILE_SIZE, ROWS * TILE_SIZE + 100  # Extra space for UI
@@ -31,18 +34,25 @@ COLORS = {
     'stench': (144, 238, 144),
     'trail': (100, 100, 100),
     'trail_glow': (150, 150, 150),
+    'safe': (0, 100, 0, 50),  # Semi-transparent green
+    'danger': (100, 0, 0, 50)  # Semi-transparent red
 }
 
-class wompus_graphics:
+class WumpusGraphics:
     def __init__(self):
         pygame.init()
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
-        pygame.display.set_caption("Wumpus World - Enhanced Edition")
+        pygame.display.set_caption("Wumpus World AI Agent")
+        self.clock = pygame.time.Clock()
+        self.animation_time = time.time()
         
         # Load fonts
         self.font_large = pygame.font.Font(None, 36)
         self.font_medium = pygame.font.Font(None, 24)
         self.font_small = pygame.font.Font(None, 18)
+        
+        # Load images if available
+        self.images = self._load_images()
         
     def draw_glowing_circle(self, surface, center, radius, color, glow_color):
         """Draw a circle with a glowing effect"""
@@ -178,73 +188,43 @@ class wompus_graphics:
         pulse_radius = 6 + int(2 * math.sin(self.animation_time * 3))
         pygame.draw.circle(surface, COLORS['trail'], center, pulse_radius, 1)
 
-    def draw_tile(self, x, y, tile_type):
-        """Draw an individual tile with enhanced graphics"""
-        pixel_x = x * TILE_SIZE
-        pixel_y = y * TILE_SIZE
-        center = (pixel_x + TILE_SIZE // 2, pixel_y + TILE_SIZE // 2)
+    # def draw_tile(self, x, y, tile_type):
+    #     """Draw an individual tile with enhanced graphics"""
+    #     pixel_x = x * TILE_SIZE
+    #     pixel_y = y * TILE_SIZE
+    #     center = (pixel_x + TILE_SIZE // 2, pixel_y + TILE_SIZE // 2)
         
-        # Draw tile background with gradient effect
-        tile_rect = pygame.Rect(pixel_x, pixel_y, TILE_SIZE, TILE_SIZE)
-        pygame.draw.rect(self.screen, COLORS['tile_empty'], tile_rect)
+    #     # Draw tile background with gradient effect
+    #     tile_rect = pygame.Rect(pixel_x, pixel_y, TILE_SIZE, TILE_SIZE)
+    #     pygame.draw.rect(self.screen, COLORS['tile_empty'], tile_rect)
         
-        # Add subtle inner shadow
-        pygame.draw.rect(self.screen, COLORS['tile_border'], tile_rect, 2)
+    #     # Add subtle inner shadow
+    #     pygame.draw.rect(self.screen, COLORS['tile_border'], tile_rect, 2)
         
-        # Draw tile contents based on type
-        if tile_type == 'A': # player or agent 
-            self.draw_agent(self.screen, center)
+    #     # Draw tile contents based on type
+    #     if tile_type == 'A': # player or agent 
+    #         self.draw_agent(self.screen, center)
             
-        elif tile_type == 'W':  # Wumpus
-            self.draw_wumpus(self.screen, center)
+    #     elif tile_type == 'W':  # Wumpus
+    #         self.draw_wumpus(self.screen, center)
             
-        elif tile_type == 'G':  # Gold
-            self.draw_gold(self.screen, center)
+    #     elif tile_type == 'G':  # Gold
+    #         self.draw_gold(self.screen, center)
                 
-        elif tile_type == 'P':  # Pit
-            self.draw_pit(self.screen, center)
+    #     elif tile_type == 'P':  # Pit
+    #         self.draw_pit(self.screen, center)
             
-        elif tile_type == 'B':  # Breeze
-            self.draw_breeze(self.screen, center)
+    #     elif tile_type == 'B':  # Breeze
+    #         self.draw_breeze(self.screen, center)
             
-        elif tile_type == 'S':  # Stench
-            self.draw_stench(self.screen, center)
+    #     elif tile_type == 'S':  # Stench
+    #         self.draw_stench(self.screen, center)
             
-        elif tile_type == 'R':  # Arrow
-            self.draw_arrow(self.screen, center)
-            
-        # elif tile_type == 'X':  # Dead
-        #     self.draw_glowing_circle(self.screen, center, 20, COLORS['dead'], COLORS['dead'])
-            
-        #     # Draw X
-        #     pygame.draw.line(self.screen, (255, 255, 255), 
-        #                    (center[0] - 12, center[1] - 12), 
-        #                    (center[0] + 12, center[1] + 12), 4)
-        #     pygame.draw.line(self.screen, (255, 255, 255), 
-        #                    (center[0] + 12, center[1] - 12), 
-        #                    (center[0] - 12, center[1] + 12), 4)
-                           
-        # elif tile_type == 'V':  # Victory
-        #     self.draw_pulsing_effect(self.screen, center, 30, COLORS['victory'], math.pi)
-        #     self.draw_glowing_circle(self.screen, center, 22, COLORS['victory'], COLORS['victory'])
-            
-        #     # Draw crown or star
-        #     star_points = []
-        #     for i in range(5):
-        #         angle = i * 2 * math.pi / 5 - math.pi / 2
-        #         outer_x = center[0] + math.cos(angle) * 15
-        #         outer_y = center[1] + math.sin(angle) * 15
-        #         star_points.append((outer_x, outer_y))
-                
-        #         angle += math.pi / 5
-        #         inner_x = center[0] + math.cos(angle) * 8
-        #         inner_y = center[1] + math.sin(angle) * 8
-        #         star_points.append((inner_x, inner_y))
-            
-        #     pygame.draw.polygon(self.screen, (255, 255, 255), star_points)
+    #     elif tile_type == 'R':  # Arrow
+    #         self.draw_arrow(self.screen, center)
         
-        elif tile_type == '.':  # trails of wumpus
-            self.draw_trail(self.screen, center)
+    #     elif tile_type == '.':  # trails of wumpus
+    #         self.draw_trail(self.screen, center)
 
     def draw_ui(self, 
                 has_gold: bool,
@@ -279,37 +259,6 @@ class wompus_graphics:
         controls_text = "ESC for menu" #"Use arrow keys or WASD to move | SPACE to shoot | ESC for menu"
         controls_surface = self.font_small.render(controls_text, True, COLORS['ui_text'])
         self.screen.blit(controls_surface, (WIDTH - 400, ui_y + 75))
-
-    def draw_board(self,
-                board: list[list[str]], 
-                agent: Agent = None, 
-                status_text: str = "Wumpus World"):
-        """Draw the entire game board"""
-        self.screen.fill(COLORS['background'])
-        
-        # Update animation time
-        self.animation_time = time.time()
-        
-        # Draw grid background
-        for x in range(COLS + 1):
-            pygame.draw.line(self.screen, COLORS['tile_border'], 
-                           (x * TILE_SIZE, 0), (x * TILE_SIZE, ROWS * TILE_SIZE))
-        for y in range(ROWS + 1):
-            pygame.draw.line(self.screen, COLORS['tile_border'], 
-                           (0, y * TILE_SIZE), (COLS * TILE_SIZE, y * TILE_SIZE))
-        
-        # Draw tiles
-        for y in range(ROWS):
-            for x in range(COLS):
-                tile = board[y][x]
-                if tile != '-':
-                    self.draw_tile(x, y, tile)
-        
-        # Draw UI
-        # self.draw_ui(status_text, has_gold, arrows_count, player_pos)
-        self.draw_ui(status_text = status_text, has_gold = agent.has_gold, arrows_count = agent.arrow_count, player_pos = agent.get_position())
-        
-        pygame.display.flip()
 
     def animate_death(self):
         """Display a sad animation after death"""
@@ -383,12 +332,6 @@ class wompus_graphics:
             pygame.display.flip()
             time.sleep(0.03)
 
-    # def take_screenshot(self):
-    #     # have to build later
-    
-    # def restart_game(self):
-    #     # have to build later
-
     def display_options(self):
         """Display options menu: restart, take snapshot, quit"""
         # Create menu overlay
@@ -446,52 +389,121 @@ class wompus_graphics:
         """Clean up and close the graphics"""
         pygame.quit()
 
-# # Example usage and testing
-# if __name__ == "__main__":
-#     # Create a simple test board
-#     test_board = [
-#         ['A', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
-#         ['-', 'B', '-', '-', '-', '-', '-', '-', '-', '-'],
-#         ['-', '-', 'P', '-', '-', '-', '-', '-', '-', '-'],
-#         ['-', '-', '-', 'S', '-', '-', '-', '-', '-', '-'],
-#         ['-', '-', '-', '-', 'W', '-', '-', '-', '-', '-'],
-#         ['-', '-', '-', '-', '-', 'G', '-', '-', '-', '-'],
-#         ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
-#         ['-', '-', '-', '-', '-', '-', '-', '.', '-', '-'],
-#         ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
-#         ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-']
-#     ]
-    
-#     # Initialize graphics
-#     graphics = wompus_graphics()
-    # graphics.update_game_state((0, 0), has_gold=False, victory=False, game_over=False, arrows=1)
-    
-#     # Main game loop for testing
-#     clock = pygame.time.Clock()
-#     running = True
-    
-#     while running:
-#         # graphics.animate_death()
-#         # graphics.animate_victory()
-#         for event in pygame.event.get():
-#             if event.type == pygame.QUIT:
-#                 running = False
-#             elif event.type == pygame.KEYDOWN:
-#                 if event.key == pygame.K_ESCAPE:
-#                     result = graphics.display_options()
-#                     if result == "quit":
-#                         running = False
-#                     elif result == "restart":
-#                         print("Restart requested")
-#                 elif event.key == pygame.K_d:
-#                     graphics.animate_death()
-#                 elif event.key == pygame.K_v:
-#                     graphics.animate_victory()
+    def _load_images(self) -> Dict[str, pygame.Surface]:
+        """Load graphical assets if available"""
+        images = {}
+        try:
+            asset_path = Path("assets")
+            if asset_path.exists():
+                images['gold'] = pygame.image.load(asset_path / "gold.png").convert_alpha()
+                images['wumpus'] = pygame.image.load(asset_path / "wumpus.png").convert_alpha()
+        except:
+            print("Could not load images, using default rendering")
+        return images
+
+    def draw_knowledge(self, kb, current_pos: Tuple[int, int]) -> None:
+        """Visualize agent's knowledge base"""
+        for y in range(ROWS):
+            for x in range(COLS):
+                pos = (y, x)
+                if pos == current_pos:
+                    continue
+                
+                pixel_x = x * TILE_SIZE
+                pixel_y = y * TILE_SIZE
+                rect = pygame.Rect(pixel_x, pixel_y, TILE_SIZE, TILE_SIZE)
+                
+                # Draw knowledge overlay
+                if pos in kb.safe_locations:
+                    pygame.draw.rect(self.screen, COLORS['safe'], rect)
+                elif pos in kb.possible_wumpus or pos in kb.possible_pits:
+                    pygame.draw.rect(self.screen, COLORS['danger'], rect)
+
+    def draw_board(self, board: List[List[str]], agent: Agent, status: str = "Exploring") -> None:
+        """Draw the complete game board with agent knowledge"""
+        self.screen.fill(COLORS['background'])
+        self.animation_time = time.time()
         
-#         graphics.draw_board(test_board, agent = Agent(AgentConfig()), status_text = "Wumpus World")
-#         clock.tick(60)
-    
-#     graphics.close()
+        # Draw grid
+        for x in range(COLS + 1):
+            pygame.draw.line(self.screen, COLORS['tile_border'], 
+                           (x * TILE_SIZE, 0), (x * TILE_SIZE, ROWS * TILE_SIZE))
+        for y in range(ROWS + 1):
+            pygame.draw.line(self.screen, COLORS['tile_border'], 
+                           (0, y * TILE_SIZE), (COLS * TILE_SIZE, y * TILE_SIZE))
+        
+        # Draw agent's knowledge first (as background)
+        if hasattr(agent, 'knowledge_base'):
+            self.draw_knowledge(agent.knowledge_base, agent.position)
+        
+        # Draw tiles
+        for y in range(ROWS):
+            for x in range(COLS):
+                self._draw_tile(x, y, board[y][x])
+        
+        # Draw UI
+        self._draw_ui(agent, status)
+        
+        pygame.display.flip()
+        self.clock.tick(60)
+
+    def _draw_tile(self, x: int, y: int, tile_type: str) -> None:
+        """Draw individual tile with animations"""
+        pixel_x = x * TILE_SIZE
+        pixel_y = y * TILE_SIZE
+        center = (pixel_x + TILE_SIZE // 2, pixel_y + TILE_SIZE // 2)
+        
+        # Tile background
+        tile_rect = pygame.Rect(pixel_x, pixel_y, TILE_SIZE, TILE_SIZE)
+        pygame.draw.rect(self.screen, COLORS['tile_empty'], tile_rect)
+        
+        # Draw contents
+        if tile_type == 'A':
+            self.draw_agent(self.screen, center)
+        elif tile_type == 'W':
+            self.draw_wumpus(self.screen, center)
+        elif tile_type == 'B':
+            self.draw_breeze(self.screen, center)
+        elif tile_type == 'S':
+            self.draw_stench(self.screen, center)
+        elif tile_type == 'G':
+            self.draw_gold(self.screen, center)
+        elif tile_type == 'P':
+            self.draw_pit(self.screen, center)
+        elif tile_type == '.':
+            self.draw_trail(self.screen ,center)
+
+    def _draw_ui(self, agent: Agent, status: str) -> None:
+        """Draw the information panel"""
+        ui_y = ROWS * TILE_SIZE
+        pygame.draw.rect(self.screen, COLORS['ui_bg'], (0, ui_y, WIDTH, 100))
+        
+        # Status text
+        status_surf = self.font_large.render(f"Status: {status}", True, COLORS['ui_text'])
+        self.screen.blit(status_surf, (10, ui_y + 10))
+        
+        # Agent info
+        info_lines = [
+            f"Position: {agent.position}",
+            f"Arrows: {agent.arrow_count}",
+            f"Gold: {'Yes' if agent.has_gold else 'No'}",
+            f"Score: {agent.score}"
+        ]
+        
+        for i, line in enumerate(info_lines):
+            text = self.font_medium.render(line, True, COLORS['ui_text'])
+            self.screen.blit(text, (10, ui_y + 40 + i * 20))
+        
+        # Percepts
+        percepts = agent.knowledge_base.percept_history.get(agent.position, [])
+        if percepts:
+            percept_text = "Percepts: " + ", ".join(percepts)
+            text = self.font_small.render(percept_text, True, COLORS['ui_text'])
+            self.screen.blit(text, (WIDTH - 300, ui_y + 80))
+
+    def close(self) -> None:
+        """Clean up resources"""
+        pygame.quit()
 
 
 

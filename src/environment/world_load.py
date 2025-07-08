@@ -1,96 +1,81 @@
-import random
-
+# import random
+from typing import List, Tuple, Dict, Optional
+from pathlib import Path
 
 class WorldLoader:
-    
-    def __init__(self, file_path = "world.txt", world_size=(10, 10)):
+    def __init__(self, file_path: str = "worlds/default.world", world_size: Tuple[int, int] = (10, 10)):
         self.file_path = file_path
         self.world_size = world_size
-        self.board = self.load_world()
+        self.board: List[List[str]] = self.load_world()
+        self.validate_world()
 
-    def generate_random_board(self, filename='board.txt'):
-        rows, cols = 10, 10
-        chars = ['W', 'G', '-', 'P']
-        board = [['-' for _ in range(10)] for _ in range(10)]
-        gold_appeared = False
-        
-        board[9][0] = 'A' # I should be able to change the player position.
-        
-        for i in range(rows):
-            # row = ['-'] * cols
-            num_items = random.randint(0, 4)  # place 1 to 4 items per row
-            for j in range(num_items):
-                if not gold_appeared:
-                    char = random.choice(['P', 'W', 'G'])
-                else:
-                    char = random.choice(['P', 'W'])
-                pos = random.randint(0, cols - 1)
-                if board[i][pos] == '-':
-                    board[i][pos] = char
-                    if char == 'G':
-                        gold_appeared = True
-
-        with open(filename, 'w') as f:
-            for row in board:
-                f.write(''.join(row) + '\n')
-    
-
-    def load_world(self):
+    def load_world(self) -> List[List[str]]:
+        """Load world from file or generate default if not found"""
         try:
             with open(self.file_path, 'r') as file:
-                board_str = file.read()
-                rows = board_str.strip().split('\n')
-                board = [[char for char in row] for row in rows]
-                
-                if (len(board), len(board[0])) != self.world_size:
-                    raise ValueError(f"Board must be of shape {self.world_size}")
-                
-                return board
+                return self._parse_world_file(file)
         except FileNotFoundError:
-            print(f"Error: File '{self.file_path}' not found!")
-            return None
-        except Exception as e:
-            print(f"An unexpected error occurred when reading the file: {e}")
-            return None
+            print(f"World file '{self.file_path}' not found, generating default world")
+            return self._generate_default_world()
 
+    def _parse_world_file(self, file) -> List[List[str]]:
+        """Parse world file into 2D array"""
+        board = []
+        for line in file:
+            line = line.strip()
+            if line and not line.startswith('#'):  # Skip comments and empty lines
+                board.append([c for c in line if c in ['W', 'P', 'G', '-', 'A']])
         
-    # Get a copy of the board
-    def get_board(self):
-        if self.board:
-            return [row[:] for row in self.board] # i am getting error here why
-        return self.load_world()
-    
-    def get_cell(self, row, col):
-        if self.board and 0 <= row < len(self.board) and 0 <= col < len(self.board[0]):
+        # Validate dimensions
+        if len(board) != self.world_size[0] or any(len(row) != self.world_size[1] for row in board):
+            raise ValueError(f"World dimensions must be {self.world_size}")
+        
+        return board
+
+    def _generate_default_world(self) -> List[List[str]]:
+        """Generate a simple default world"""
+        board = [['-' for _ in range(self.world_size[1])] for _ in range(self.world_size[0])]
+        
+        # Place agent
+        board[9][0] = 'A'
+        
+        # Place some hazards and gold
+        board[7][3] = 'P'
+        board[5][5] = 'W'
+        board[2][8] = 'G'
+        
+        return board
+
+    def validate_world(self) -> None:
+        """Validate world configuration"""
+        if not any('G' in row for row in self.board):
+            raise ValueError("World must contain at least one gold piece")
+        
+        if sum(row.count('W') for row in self.board) > 1:
+            raise ValueError("World can have at most one Wumpus")
+
+    def get_board(self) -> List[List[str]]:
+        """Get a deep copy of the board"""
+        return [row.copy() for row in self.board]
+
+    def find_elements(self, element: str) -> List[Tuple[int, int]]:
+        """Find all positions of a specific element"""
+        return [
+            (i, j) 
+            for i, row in enumerate(self.board) 
+            for j, val in enumerate(row) 
+            if val == element
+        ]
+
+    def get_cell(self, row: int, col: int) -> Optional[str]:
+        """Get cell content at position"""
+        if 0 <= row < self.world_size[0] and 0 <= col < self.world_size[1]:
             return self.board[row][col]
         return None
-    
-    # Find all positions of a specific element in the world
-    def find_elements(self, element):
-        positions = []
-        if self.board:
-            for i in range(len(self.board)):
-                for j in range(len(self.board[i])):
-                    if self.board[i][j] == element:
-                        positions.append((i, j))
-        return positions
-    
-    def print_world(self):
-        if self.board:
-            print("\nOriginal World Layout:")
-            print("  " + " ".join([str(i) for i in range(len(self.board[0]))]))
-            for i in range(len(self.board)):
-                print(f"{i} ", end="")
-                for j in range(len(self.board[i])):
-                    print(self.board[i][j], end=' ')
-                print()
-        else:
-            print("No world loaded!")
 
-# for checking is everything ok?
-if __name__ == "__main__":
-    world = WorldLoader('world.txt')
-    world.print_world()
-    print(f"Wumpus positions: {world.find_elements('W')}")
-    print(f"Pit positions: {world.find_elements('P')}")
-    print(f"Gold positions: {world.find_elements('G')}")
+    def print_world(self) -> None:
+        """Print world layout"""
+        print("\nWorld Layout:")
+        print("  " + " ".join(str(i) for i in range(self.world_size[1])))
+        for i, row in enumerate(self.board):
+            print(f"{i} " + " ".join(row))
