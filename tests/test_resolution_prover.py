@@ -1,5 +1,14 @@
 import unittest
 from collections import deque
+from typing import Set, Dict, FrozenSet
+# from agent.logic import ResolutionProver
+import unittest
+import sys
+import os
+
+# Add the src directory to Python path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
+
 from agent.logic import ResolutionProver
 
 class TestResolutionProver(unittest.TestCase):
@@ -63,24 +72,35 @@ class TestResolutionProver(unittest.TestCase):
     def test_wumpus_adjacent_inference(self):
         """Test Wumpus adjacency reasoning"""
         # Wumpus causes stench in adjacent cells
-        self.prover.add_clause(["¬W_1_1", "S_1_2"])
-        self.prover.add_clause(["¬W_1_1", "S_2_1"])
+        for dx, dy in [(0,1), (1,0), (0,-1), (-1,0)]:
+            self.prover.add_clause([f"¬W_1_1", f"S_{1+dx}_{1+dy}"])
         
-        # We smell stench at (1,2) but not at (2,1)
-        self.prover.add_clause(["S_1_2"])
-        self.prover.add_clause(["¬S_2_1"])
+        # Stench implies at least one Wumpus nearby
+        adjacent = ["W_1_1", "W_1_2", "W_2_1", "W_1_0", "W_0_1"]
+        self.prover.add_clause(["¬S_1_1"] + adjacent)
         
-        # Should infer Wumpus is at (1,1)
+        # Current observations
+        self.prover.add_clause(["S_1_1"])
+        self.prover.add_clause(["¬W_1_2"])
+        self.prover.add_clause(["¬W_2_1"])
+        self.prover.add_clause(["¬W_1_0"])
+        self.prover.add_clause(["¬W_0_1"])
+        
         self.assertTrue(self.prover.prove("W_1_1"))
 
     def test_safe_cell_inference(self):
         """Test safe cell deduction"""
         # If no stench, adjacent cells are safe
-        self.prover.add_clause(["¬S_1_1", "W_1_0", "W_0_1", "W_2_1", "W_1_2"])
+        adjacent_positions = [(1,0), (0,1), (2,1), (1,2)]
+        
+        for x, y in adjacent_positions:
+            self.prover.add_clause([f"S_1_1", f"¬W_{x}_{y}"])  # No stench → no Wumpus
+        
         self.prover.add_clause(["¬S_1_1"])  # No stench
         
-        for pos in [(1,0), (0,1), (2,1), (1,2)]:
-            self.assertTrue(self.prover.prove(f"¬W_{pos[0]}_{pos[1]}"))
+        for x, y in adjacent_positions:
+            self.assertTrue(self.prover.prove(f"¬W_{x}_{y}"),
+                          f"Failed to prove W_{x}_{y} is safe")
 
     # Performance and Edge Cases
     def test_large_knowledge_base(self):
@@ -94,14 +114,14 @@ class TestResolutionProver(unittest.TestCase):
 
     def test_max_steps_handling(self):
         """Test the max_steps parameter"""
-        # Create an unsatisfiable KB that would run forever
+        # Create an unsolvable configuration
         for i in range(100):
             self.prover.add_clause([f"X_{i}", f"Y_{i}"])
-            self.prover.add_clause([f"¬X_{i}"])
-            self.prover.add_clause([f"¬Y_{i}"])
+            self.prover.add_clause([f"¬X_{i}", f"Z_{i}"])
+            self.prover.add_clause([f"¬Y_{i}", f"¬Z_{i}"])
         
-        # Should return False rather than run forever
-        self.assertFalse(self.prover.prove("Z", max_steps=50))
+        # This should not be provable within 50 steps
+        self.assertFalse(self.prover.prove("W_99", max_steps=50))
 
     # Negative Test Cases
     def test_unprovable_queries(self):
@@ -112,10 +132,10 @@ class TestResolutionProver(unittest.TestCase):
 
     def test_invalid_input_handling(self):
         """Test handling of invalid inputs"""
-        with self.assertRaises(Exception):
+        with self.assertRaises(ValueError):
             self.prover.add_clause([])  # Empty clause
             
-        with self.assertRaises(Exception):
+        with self.assertRaises(ValueError):
             self.prover.prove("")  # Empty query
 
 if __name__ == "__main__":

@@ -1,33 +1,33 @@
-from typing import List, Set, Tuple, Dict, Optional
-from collections import deque, defaultdict
+from typing import List, Set, FrozenSet, Dict, Optional
+from collections import defaultdict, deque
+import logging
+
 
 class ResolutionProver:
     def __init__(self):
-        self.clauses: Set[frozenset] = set()
+        self.clauses: Set[FrozenSet[str]] = set()
         self.symbols: Set[str] = set()
-        self._index: Dict[str, Set[frozenset]] = defaultdict(set)  # For faster resolution
+        self._literal_index: Dict[str, Set[FrozenSet]] = defaultdict(set)  # New index for faster resolution
 
     def add_clause(self, clause: List[str]) -> None:
-        """Add a disjunctive clause to the KB - skip tautologies"""
-        # Check for tautology (a literal and its negation both present)
-        literals = set()
-        for lit in clause:
-            if lit.startswith('¬'):
-                base = lit[1:]
-                if base in literals:
-                    return  # Tautology found
-                literals.add(lit)
-            else:
-                if f"¬{lit}" in literals:
-                    return  # Tautology found
-                literals.add(lit)
+        """Improved with input validation and tautology detection"""
+        if not clause:
+            raise ValueError("Empty clause provided")
         
-        # Proceed with adding non-tautological clause
+        # Tautology check (A ∨ ¬A)
+        seen = set()
+        for lit in clause:
+            neg = lit[1:] if lit.startswith('¬') else f"¬{lit}"
+            if neg in seen:
+                return  # Skip tautologies
+            seen.add(lit)
+        
         frozen = frozenset(clause)
         if frozen not in self.clauses:
             self.clauses.add(frozen)
-            for literal in clause:
-                self.symbols.add(literal.strip('¬'))
+            for lit in clause:
+                self.symbols.add(lit.strip('¬'))
+                self._literal_index[lit].add(frozen)  # Maintain index
 
     def resolve(self, c1: frozenset, c2: frozenset) -> Set[frozenset]:
         """Efficient resolution focusing only on complementary literals"""
@@ -45,6 +45,7 @@ class ResolutionProver:
         return resolvents
 
 
+
     def prove(self, query: str, max_steps: int = 1000) -> bool:
         """
         Use resolution refutation to prove the query.
@@ -59,13 +60,19 @@ class ResolutionProver:
         """
         # Handle disjunctive queries (A OR B OR C)
         if " OR " in query:
-            sub_queries = [q.strip() for q in query.split(" OR ")]
-            return any(self.prove(sub_query, max_steps) for sub_query in sub_queries)
+            return any(self.prove(sub_query.strip(), max_steps) 
+                    for sub_query in query.split(" OR "))
         
         # Standard resolution for atomic queries
         negated = f"¬{query}" if not query.startswith('¬') else query[1:]
         new_clauses = set(self.clauses)
         new_clauses.add(frozenset([negated]))
+        
+        # Create resolution index
+        index = defaultdict(set)
+        for clause in new_clauses:
+            for lit in clause:
+                index[lit].add(clause)
         
         seen = set(new_clauses)
         queue = deque(new_clauses)
@@ -74,32 +81,35 @@ class ResolutionProver:
         while queue and steps < max_steps:
             current = queue.popleft()
             
-            # Check against all existing clauses
-            for clause in list(seen):
-                # Find complementary literals
-                resolvents = set()
-                for lit in current:
-                    complement = f"¬{lit}" if not lit.startswith('¬') else lit[1:]
-                    if complement in clause:
-                        # Create resolvent by combining and removing complements
-                        resolvent = (current | clause) - {lit, complement}
-                        
-                        # Empty clause means contradiction found
-                        if not resolvent:
-                            return True
-                        
-                        # Skip trivial or already seen clauses
-                        if resolvent and resolvent not in seen:
-                            resolvents.add(resolvent)
+            # Get all literals to check for resolution
+            for lit in current:
+                complement = lit[1:] if lit.startswith('¬') else f"¬{lit}"
                 
-                # Add new resolvents to processing queue
-                for resolvent in resolvents:
-                    seen.add(resolvent)
-                    queue.append(resolvent)
+                # Resolve with all clauses containing the complement
+                for other_clause in index.get(complement, set()):
+                    # Skip if we've already processed this pair
+                    if other_clause in seen:
+                        continue
+                    
+                    # Create resolvent by combining and removing complements
+                    resolvent = (current | other_clause) - {lit, complement}
+                    
+                    # Empty clause means contradiction found
+                    if not resolvent:
+                        return True
+                    
+                    # Add new resolvent if not already seen
+                    if resolvent not in seen:
+                        seen.add(resolvent)
+                        queue.append(resolvent)
+                        # Update index
+                        for l in resolvent:
+                            index[l].add(resolvent)
             
             steps += 1
         
         return False
+
 
 
     def get_entailed_literals(self) -> Set[str]:
@@ -114,13 +124,13 @@ class ResolutionProver:
 
 class PropositionalLogic:
     @staticmethod
-    def to_propositional(position: Tuple[int, int], element: str) -> str:
+    def to_propositional(position: tuple[int, int], element: str) -> str:
         """Convert grid position to propositional symbol"""
         x, y = position
         return f"{element}_{x}_{y}"
 
     @staticmethod
-    def generate_initial_clauses(world_size: Tuple[int, int]) -> List[List[str]]:
+    def generate_initial_clauses(world_size: tuple[int, int]) -> List[List[str]]:
         """Generate initial Wumpus World axioms"""
         clauses = []
         rows, cols = world_size
