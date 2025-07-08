@@ -35,66 +35,62 @@ class KnowledgeBase:
         # Percept history
         self.percept_history: Dict[Tuple[int, int], List[str]] = defaultdict(list)
 
-    def add_percept(self, position: Tuple[int, int], percepts: List[str]) -> None: # might need to fix # flag
+
+
+    def add_percept(self, position: Tuple[int, int], percepts: List[str]) -> None:
         """Update KB with new percepts at given position"""
+        if position in self.percept_history:
+            return  # Already processed this percept
+
         self.visited.add(position)
         self.percept_history[position] = percepts
+        self.safe_locations.add(position)  # If we're alive, this place is safe
 
-
-        if "Nothing" in percepts:
-            for neighbor in self._get_adjacent(position):
-                wumpus = PropositionalLogic.to_propositional(neighbor, 'W')
-                pit = PropositionalLogic.to_propositional(neighbor, 'P')
-                self.prover.add_clause([f"¬{wumpus}"])
-                self.prover.add_clause([f"¬{pit}"])
-                self.safe_locations.add(neighbor)
-        
-        print(f"[PROVER] Total clauses: {len(self.prover.clauses)}")
-
-
-
-        
-        # Mark current position as safe (since we're alive)
-        self.safe_locations.add(position)
-        
+        # Mark adjacent cells as safe if there's no hazard indicator
         if "Stench" not in percepts:
             self._mark_adjacent_safe(position, 'wumpus')
-        else:
-            # Wumpus is nearby — don't mark adjacent cells safe for wumpus
-            pass
-
         if "Breeze" not in percepts:
             self._mark_adjacent_safe(position, 'pit')
-        else:
-            # Breeze nearby — don’t assume neighbors are safe from pits
-            pass
-        stench_sym = PropositionalLogic.to_propositional(position, 'S')
-        adjacent = self._get_adjacent(position)
 
+        # Logical clauses: Stench
+        stench_sym = PropositionalLogic.to_propositional(position, 'S')
         if "Stench" in percepts:
             self.prover.add_clause([stench_sym])
-            
-            # Add implication: Stench → Wumpus nearby
             wumpus_neighbors = [
-                PropositionalLogic.to_propositional(pos, 'W') for pos in adjacent
+                PropositionalLogic.to_propositional(pos, 'W') 
+                for pos in self._get_adjacent(position)
             ]
-            clause = [f"¬{stench_sym}"] + wumpus_neighbors
-            self.prover.add_clause(clause)
-            
-            # Add reverse implication: Wumpus → Stench
+            self.prover.add_clause([f"¬{stench_sym}"] + wumpus_neighbors)
             for wumpus_sym in wumpus_neighbors:
                 self.prover.add_clause([f"¬{wumpus_sym}", stench_sym])
         else:
             self.prover.add_clause([f"¬{stench_sym}"])
 
-        # Now try to deduce where the Wumpus is:
-        for neighbor in adjacent:
+        # Logical clauses: Breeze
+        breeze_sym = PropositionalLogic.to_propositional(position, 'B')
+        if "Breeze" in percepts:
+            pit_neighbors = [
+                PropositionalLogic.to_propositional(pos, 'P')
+                for pos in self._get_adjacent(position)
+            ]
+            self.prover.add_clause([f"¬{breeze_sym}"] + pit_neighbors)
+            for pit_sym in pit_neighbors:
+                self.prover.add_clause([f"¬{pit_sym}", breeze_sym])
+        else:
+            self.prover.add_clause([f"¬{breeze_sym}"])
+
+        # Use resolution to try to prove Wumpus positions
+        for neighbor in self._get_adjacent(position):
             w_sym = PropositionalLogic.to_propositional(neighbor, 'W')
-            if self.prover.prove(w_sym):
-                print(f"[LOGIC] Wumpus definitely at {neighbor}")
+            if neighbor not in self.confirmed_wumpus and self.prover.prove(w_sym):
                 self.confirmed_wumpus.add(neighbor)
+                print(f"[LOGIC] Wumpus definitely at {neighbor}")
             elif self.prover.prove(f"¬{w_sym}"):
                 self.safe_locations.add(neighbor)
+
+
+
+
 
     def infer_dangers(self) -> None:
         """Use logical inference to determine hazards"""

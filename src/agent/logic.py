@@ -47,64 +47,44 @@ class ResolutionProver:
 
 
     def prove(self, query: str, max_steps: int = 1000) -> bool:
-        """
-        Use resolution refutation to prove the query.
-        Handles both atomic and disjunctive queries.
+        """Enhanced with OR handling and better resolution"""
+        if not query:
+            raise ValueError("Empty query provided")
         
-        Args:
-            query: The query to prove (e.g., "A" or "A OR B OR C")
-            max_steps: Maximum resolution steps to prevent infinite loops
-            
-        Returns:
-            bool: True if the query can be proven, False otherwise
-        """
         # Handle disjunctive queries (A OR B OR C)
         if " OR " in query:
-            return any(self.prove(sub_query.strip(), max_steps) 
-                    for sub_query in query.split(" OR "))
+            return any(self.prove(sub_q.strip(), max_steps) 
+                     for sub_q in query.split(" OR "))
         
-        # Standard resolution for atomic queries
         negated = f"¬{query}" if not query.startswith('¬') else query[1:]
         new_clauses = set(self.clauses)
         new_clauses.add(frozenset([negated]))
         
-        # Create resolution index
-        index = defaultdict(set)
-        for clause in new_clauses:
-            for lit in clause:
-                index[lit].add(clause)
-        
-        seen = set(new_clauses)
         queue = deque(new_clauses)
+        seen = set(new_clauses)
         steps = 0
         
         while queue and steps < max_steps:
             current = queue.popleft()
             
-            # Get all literals to check for resolution
+            # Get clauses containing complementary literals
             for lit in current:
                 complement = lit[1:] if lit.startswith('¬') else f"¬{lit}"
-                
-                # Resolve with all clauses containing the complement
-                for other_clause in index.get(complement, set()):
-                    # Skip if we've already processed this pair
-                    if other_clause in seen:
+                for other_clause in self._literal_index.get(complement, set()):
+                    if other_clause not in seen:
                         continue
                     
-                    # Create resolvent by combining and removing complements
                     resolvent = (current | other_clause) - {lit, complement}
                     
-                    # Empty clause means contradiction found
-                    if not resolvent:
+                    if not resolvent:  # Empty clause found
                         return True
                     
-                    # Add new resolvent if not already seen
                     if resolvent not in seen:
                         seen.add(resolvent)
                         queue.append(resolvent)
                         # Update index
                         for l in resolvent:
-                            index[l].add(resolvent)
+                            self._literal_index[l].add(resolvent)
             
             steps += 1
         
