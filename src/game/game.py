@@ -65,11 +65,9 @@ class WumpusGame:
         print(f"Percepts: {self.get_percepts()}")
 
     def get_percepts(self) -> List[str]:
-        """Get current percepts based on agent position"""
         percepts = []
         row, col = self.agent.position
-        
-        # Check adjacent cells
+
         adjacent = [(row-1,col), (row+1,col), (row,col-1), (row,col+1)]
         for r, c in adjacent:
             if 0 <= r < self.world_size[0] and 0 <= c < self.world_size[1]:
@@ -78,6 +76,15 @@ class WumpusGame:
                     percepts.append("Stench")
                 elif cell == 'P' and "Breeze" not in percepts:
                     percepts.append("Breeze")
+
+        if self.original_world[row][col] == 'G':
+            percepts.append("Glitter")
+
+        if not percepts:
+            percepts = ["Nothing"]
+
+        print(f"[PERCEPTS] At {self.agent.position} → {percepts}")
+        return percepts
 
     def get_world_info(self) -> Dict:
         """Return complete world information"""

@@ -28,13 +28,17 @@ class KnowledgeBase:
         # Mark current position as safe (since we're alive)
         self.safe_locations.add(position)
         
-        # If no stench, adjacent cells are Wumpus-free
         if "Stench" not in percepts:
             self._mark_adjacent_safe(position, 'wumpus')
-            
-        # If no breeze, adjacent cells are pit-free
+        else:
+            # Wumpus is nearby — don't mark adjacent cells safe for wumpus
+            pass
+
         if "Breeze" not in percepts:
             self._mark_adjacent_safe(position, 'pit')
+        else:
+            # Breeze nearby — don’t assume neighbors are safe from pits
+            pass
 
     def infer_dangers(self) -> None:
         """Use logical inference to determine hazards"""
@@ -74,15 +78,57 @@ class KnowledgeBase:
                 self.possible_pits.remove(pos)
             self.safe_locations.add(pos)
 
+    def _get_adjacent(self, position: Tuple[int, int]) -> List[Tuple[int, int]]:
+        x, y = position
+        candidates = [(x-1, y), (x+1, y), (x, y-1), (x, y+1)]
+        return [(i, j) for i, j in candidates if 0 <= i < 10 and 0 <= j < 10]
+
     def _infer_wumpus_positions(self) -> None:
-        """Use resolution to determine Wumpus locations"""
-        # Implementation would use logical resolution
-        pass
+        stench_cells = [pos for pos, percepts in self.percept_history.items() if "Stench" in percepts]
+        
+        if not stench_cells:
+            self.possible_wumpus.clear()
+            return
+
+        # Get adjacent unvisited and unsafe cells for the first stench cell
+        possible = set(
+            neighbor for neighbor in self._get_adjacent(stench_cells[0])
+            if neighbor not in self.safe_locations and neighbor not in self.visited
+        )
+
+        # Intersect with the rest
+        for pos in stench_cells[1:]:
+            neighbors = set(
+                neighbor for neighbor in self._get_adjacent(pos)
+                if neighbor not in self.safe_locations and neighbor not in self.visited
+            )
+            possible &= neighbors
+
+        self.possible_wumpus = possible
+
 
     def _infer_pit_positions(self) -> None:
-        """Use resolution to determine pit locations"""
-        # Implementation would use logical resolution
-        pass
+        breeze_cells = [pos for pos, percepts in self.percept_history.items() if "Breeze" in percepts]
+        
+        if not breeze_cells:
+            self.possible_pits.clear()
+            return
+
+        possible = set(
+            neighbor for neighbor in self._get_adjacent(breeze_cells[0])
+            if neighbor not in self.safe_locations and neighbor not in self.visited
+        )
+
+        for pos in breeze_cells[1:]:
+            neighbors = set(
+                neighbor for neighbor in self._get_adjacent(pos)
+                if neighbor not in self.safe_locations and neighbor not in self.visited
+            )
+            possible &= neighbors
+
+        self.possible_pits = possible
+
+
 
     def _resolve_conflicts(self) -> None:
         """Resolve any contradictions in KB"""

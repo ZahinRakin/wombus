@@ -80,6 +80,13 @@ class PropositionalLogic:
                     clauses.append([f"¬{pit}", breeze])
                 
                 # Similar for Stench ⇔ adjacent Wumpus
-                # ... (implementation similar to breeze)
+                stench = PropositionalLogic.to_propositional((x, y), 'S')
+                wumpus_clauses = []
+                for (i, j) in valid_adj:
+                    wumpus = PropositionalLogic.to_propositional((i, j), 'W')
+                    clauses.append([f"¬{stench}", wumpus])
+                    wumpus_clauses.append(wumpus)
+                for wumpus in wumpus_clauses:
+                    clauses.append([f"¬{wumpus}", stench])
         
         return clauses
