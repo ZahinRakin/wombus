@@ -1,9 +1,11 @@
 from typing import Set, Tuple, List, Dict
 from collections import defaultdict
+from .logic import ResolutionProver, PropositionalLogic
 
 class KnowledgeBase:
     def __init__(self):
         # Safe locations (no pit or wumpus)
+        self.prover = ResolutionProver()
         self.safe_locations: Set[Tuple[int, int]] = set()
         
         # Possible hazard locations
@@ -20,7 +22,7 @@ class KnowledgeBase:
         # Percept history
         self.percept_history: Dict[Tuple[int, int], List[str]] = defaultdict(list)
 
-    def add_percept(self, position: Tuple[int, int], percepts: List[str]) -> None:
+    def add_percept(self, position: Tuple[int, int], percepts: List[str]) -> None: # might need to fix # flag
         """Update KB with new percepts at given position"""
         self.visited.add(position)
         self.percept_history[position] = percepts
@@ -39,6 +41,33 @@ class KnowledgeBase:
         else:
             # Breeze nearby — don’t assume neighbors are safe from pits
             pass
+        stench_sym = PropositionalLogic.to_propositional(position, 'S')
+        adjacent = self._get_adjacent(position)
+
+        if "Stench" in percepts:
+            self.prover.add_clause([stench_sym])
+            
+            # Add implication: Stench → Wumpus nearby
+            wumpus_neighbors = [
+                PropositionalLogic.to_propositional(pos, 'W') for pos in adjacent
+            ]
+            clause = [f"¬{stench_sym}"] + wumpus_neighbors
+            self.prover.add_clause(clause)
+            
+            # Add reverse implication: Wumpus → Stench
+            for wumpus_sym in wumpus_neighbors:
+                self.prover.add_clause([f"¬{wumpus_sym}", stench_sym])
+        else:
+            self.prover.add_clause([f"¬{stench_sym}"])
+
+        # Now try to deduce where the Wumpus is:
+        for neighbor in adjacent:
+            w_sym = PropositionalLogic.to_propositional(neighbor, 'W')
+            if self.prover.prove(w_sym):
+                print(f"[LOGIC] Wumpus definitely at {neighbor}")
+                self.confirmed_wumpus.add(neighbor)
+            elif self.prover.prove(f"¬{w_sym}"):
+                self.safe_locations.add(neighbor)
 
     def infer_dangers(self) -> None:
         """Use logical inference to determine hazards"""
@@ -84,27 +113,18 @@ class KnowledgeBase:
         return [(i, j) for i, j in candidates if 0 <= i < 10 and 0 <= j < 10]
 
     def _infer_wumpus_positions(self) -> None:
-        stench_cells = [pos for pos, percepts in self.percept_history.items() if "Stench" in percepts]
-        
-        if not stench_cells:
-            self.possible_wumpus.clear()
-            return
+        """Use resolution to infer Wumpus positions"""
+        print(f"[LOGIC DEBUG] Safe: {self.safe_locations}, Confirmed Wumpus: {self.confirmed_wumpus}")
+        for row in range(10):
+            for col in range(10):
+                pos = (row, col)
+                wumpus_sym = PropositionalLogic.to_propositional(pos, 'W')
 
-        # Get adjacent unvisited and unsafe cells for the first stench cell
-        possible = set(
-            neighbor for neighbor in self._get_adjacent(stench_cells[0])
-            if neighbor not in self.safe_locations and neighbor not in self.visited
-        )
+                if self.prover.prove(wumpus_sym):
+                    self.confirmed_wumpus.add(pos)
+                elif self.prover.prove(f"¬{wumpus_sym}"):
+                    self.safe_locations.add(pos)
 
-        # Intersect with the rest
-        for pos in stench_cells[1:]:
-            neighbors = set(
-                neighbor for neighbor in self._get_adjacent(pos)
-                if neighbor not in self.safe_locations and neighbor not in self.visited
-            )
-            possible &= neighbors
-
-        self.possible_wumpus = possible
 
 
     def _infer_pit_positions(self) -> None:
@@ -128,7 +148,16 @@ class KnowledgeBase:
 
         self.possible_pits = possible
 
-
+    def infer_from_logic(self) -> None:
+        """Infer hazards from logical deductions using the prover"""
+        for row in range(10):
+            for col in range(10):
+                pos = (row, col)
+                w_sym = PropositionalLogic.to_propositional(pos, 'W')
+                if self.prover.prove(w_sym):
+                    self.confirmed_wumpus.add(pos)
+                elif self.prover.prove(f"¬{w_sym}"):
+                    self.safe_locations.add(pos)
 
     def _resolve_conflicts(self) -> None:
         """Resolve any contradictions in KB"""

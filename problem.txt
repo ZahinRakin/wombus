@@ -1,0 +1,37 @@
+Thanks for sharing `logic.py` and the world file. I’ll now investigate how the resolution engine and KB are being used (or not used) for actual reasoning by the agent — especially in relation to Wumpus detection — and whether the `ResolutionProver` is integrated meaningfully or is unused. I’ll also look for any disconnects in inference-to-action that might be causing unsafe behavior.
+
+I’ll get back to you shortly with detailed findings and recommendations.
+
+
+# ResolutionProver usage – not happening. The `ResolutionProver` class is defined (in **logic.py**) but is never actually used by the agent’s decision code. The agent does call `self.prover = ResolutionProver()`, but no further methods of the prover are invoked. Instead, all inferences come from simple set-operations in `KnowledgeBase`. In other words, percepts are never converted into logic clauses for the prover, and no queries are made using resolution. The agent’s code never calls `prover.add_clause(...)` or `prover.prove(...)`, so the rich propositional logic machinery is idle.
+
+# Heuristic KB vs. Logical inference.  The `KnowledgeBase` relies entirely on ad hoc rules, not resolution. In **knowledge\_base.py**, each new percept simply updates three sets (`safe_locations`, `possible_wumpus`, `possible_pits`) via Python code. For example, on seeing *no* Stench at (x,y), the code marks all adjacent squares safe from a Wumpus, and on *no* Breeze it marks them safe from pits. Conversely, if a Stench is perceived, the agent *does not* mark adjacent squares safe (since Wumpus “might” be there).  Then `infer_dangers()` just loops over past percepts: every time a Stench was seen at a square, all its neighbors that are not already known safe or visited get added to `possible_wumpus`.  No resolution at all is used. In summary, the KB never invokes the `ResolutionProver` – it uses only these basic rules, not logic-based theorem proving.
+
+# Percept history → clauses: never done.  Although the code collects a history of percepts (`self.percept_history`), it never translates those percepts into propositional clauses. The `logic.py` even includes a `PropositionalLogic.to_propositional` and a `generate_initial_clauses` (with Breeze rules, but *no* Stench rules implemented) – but the agent does not use these. There is no code that forms clauses like “Stench at (x,y) implies Wumpus in one of its neighbors” or adds those to the prover. Instead, the agent only uses the sets in `KnowledgeBase` to make decisions. In short, percepts are stored but never fed into the resolution engine or any logic system.
+
+# infer\_wumpus/\_pit vs ResolutionProver. The methods `_infer_wumpus_positions` and `_infer_pit_positions` in **knowledge\_base.py** do *not* call the prover – they directly add neighbors of every stench (or breeze) cell to `possible_wumpus` (or `possible_pits`) if those neighbors are not known safe or visited.  The `ResolutionProver` is not involved. Thus, the only link from a Stench percept to a hazard is this naive rule: “if you smelled a stench at (x,y), then mark all adjacent unknown squares as possibly the Wumpus.” No checking or intersection logic is done; no formal entailment.
+
+# Missing “Stench⇔Wumpus” clauses. Crucially, the code never enforces the logical relationship between Stench and Wumpus formally. In the (unused) `PropositionalLogic.generate_initial_clauses`, only Breeze⇔Pit is implemented; Stench⇔Wumpus is noted but “(implementation similar to breeze)” is left as a comment. Since the prover isn’t used, that means the agent has no rule like “Stench at (x,y) ⇒ (Wumpus at one of neighbors)”, or the reverse. In practice the only “rule” is the heuristic in `_infer_wumpus_positions`. Even that heuristic is flawed: **when Stench is present, the KB’s code still marks those neighbors safe from pits**.  In `add_percept`, a lack of Breeze triggers `mark_adjacent_safe(…, 'pit')`. Thus when the agent hears a Stench with *no* Breeze, it marks *all neighbors* safe (for *all* hazards) in the `safe_locations` set – inadvertently including the actual Wumpus location. For example, at (7,2) a Stench causes `(6,2)` (the true Wumpus) to be added to `safe_locations` under the pit rule. Then `_infer_wumpus_positions` sees `(6,2)` as already “safe” and never adds it to `possible_wumpus`. The agent ends up with an empty `possible_wumpus` despite multiple stenches, and so it blithely walks into (6,2) and dies.
+
+# Root cause. In summary, **no actual logical inference is happening**. The `ResolutionProver` is unused; the KB uses hand-coded rules that even contradict logic. In particular, when a Stench is sensed, the code’s pit-safe-marking step wrongly labels the Wumpus square safe, so the agent never “knows” to avoid it. The missing bridge is clear: the agent should be deriving *entailments* (e.g. “Wumpus must be in one of these neighbors”) via resolution or at least correct logic rules, but it doesn’t. Instead it treats safe/pit marking and possible hazards entirely heuristically, causing it to ignore repeated stench cues.
+
+# Proposed fixes – use real logic. The solution is to integrate the `ResolutionProver` and add the missing clauses. For example: whenever the agent perceives a Stench at (x,y), it should add propositional clauses such as
+
+```
+(Stench_xy ⇒ W_i OR W_j OR …)
+```
+
+for each adjacent cell (i,j), and the converse implications `(W_i ⇒ Stench_xy)` for each neighbor. These can be encoded via `prover.add_clause`. Then the agent can *query* the prover: e.g. ask `prover.prove(W_i)` or `prover.prove(¬W_i)` for each adjacent cell. Any cell that is entailed to contain a Wumpus can be added to `confirmed_wumpus`; any cell provably free of Wumpus becomes safe. Concretely, one could use the `PropositionalLogic.to_propositional((x,y),'W')` symbols and the `ResolutionProver.prove()` method to infer hazards. Similarly, do this for Breezes and pits.
+
+If using the existing KB approach, a minimal fix is to **change `add_percept`** so that if *Stench* is present, it does *not* mark adjacent squares safe (even for pits). That way the Wumpus cell doesn’t get erroneously added to `safe_locations`. For example:
+
+```python
+if "Breeze" not in percepts and "Stench" not in percepts:
+    self._mark_adjacent_safe(position, 'pit')
+```
+
+– i.e. skip pit-safe marking when a Stench is sensed. This would keep `(6,2)` out of `safe_locations`, so `_infer_wumpus_positions` would correctly add it to `possible_wumpus`. But the **better fix** is to replace these hacks with genuine propositional inference as outlined.
+
+In short, the agent must *use* the `ResolutionProver` (or equivalent logic) with the clauses that link Stench/Breeze to adjacent hazards. Adding those clauses and calling `prover.prove(...)` for each candidate cell will allow the agent to deduce the Wumpus location instead of ignoring the stench. For example, after sensing Stench at (7,2), the agent would create clauses for `W_6_2 ∨ W_8_2 ∨ W_7_1 ∨ W_7_3` and its converses, then resolve queries to pin down `(6,2)` as the Wumpus. This integration of formal logic is the precise fix needed to stop the agent from walking into the Wumpus.
+
+**Sources:** Code inspection of *logic.py* and *knowledge\_base.py* (above) shows that propositional clauses for stench are unimplemented and that the KB uses simple set-rules instead of resolution; the agent code likewise never calls the `ResolutionProver`. These omissions cause the observed failure to reason about repeated stench cues.

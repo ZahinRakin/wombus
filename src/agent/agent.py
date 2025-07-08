@@ -92,7 +92,7 @@ class Agent:
 
     def update_knowledge(self, percepts: List[str]) -> None:
         self.knowledge_base.add_percept(self.position, percepts)
-        self.knowledge_base.infer_dangers()
+        self.knowledge_base.infer_from_logic()
         self.position_history.append(self.position)
 
         print(f"[KNOWLEDGE] Added percepts at {self.position}: {percepts}")
