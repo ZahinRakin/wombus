@@ -19,10 +19,14 @@ COLORS = {
     'gold': (255, 215, 0),
     'gold_glow': (255, 255, 0),
     'pit': (15, 15, 15),
+    'pit_glow': (50, 50, 50),
     'victory': (50, 255, 50),
     'dead': (255, 50, 50),
     'ui_text': (200, 200, 200),
-    'ui_bg': (35, 40, 55)
+    'ui_bg': (35, 40, 55),
+    'arrow': (255, 140, 0),
+    'breeze': (173, 216, 230),
+    'stench': (144, 238, 144)
 }
 
 class wompus_graphics:
@@ -36,6 +40,14 @@ class wompus_graphics:
         self.font_medium = pygame.font.Font(None, 24)
         self.font_small = pygame.font.Font(None, 18)
         
+        # Game state variables
+        self.player_pos = (0, 0)
+        self.has_gold = False
+        self.victory_achieved = False
+        self.game_over = False
+        self.animation_time = 0
+        self.arrows_count = 1
+        
         # Visual effects
         self.particle_effects = []
         
@@ -44,9 +56,10 @@ class wompus_graphics:
         # Draw multiple circles with decreasing alpha for glow effect
         for i in range(5):
             alpha = 50 - i * 10
-            glow_surf = pygame.Surface((radius * 4, radius * 4), pygame.SRCALPHA)
-            pygame.draw.circle(glow_surf, (*glow_color, alpha), (radius * 2, radius * 2), radius + i * 3)
-            surface.blit(glow_surf, (center[0] - radius * 2, center[1] - radius * 2))
+            if alpha > 0:
+                glow_surf = pygame.Surface((radius * 4, radius * 4), pygame.SRCALPHA)
+                pygame.draw.circle(glow_surf, (*glow_color, alpha), (radius * 2, radius * 2), radius + i * 3)
+                surface.blit(glow_surf, (center[0] - radius * 2, center[1] - radius * 2))
         
         # Draw main circle
         pygame.draw.circle(surface, color, center, radius)
@@ -57,9 +70,10 @@ class wompus_graphics:
         radius = int(base_radius * pulse)
         alpha = int(255 * pulse * 0.5)
         
-        pulse_surf = pygame.Surface((radius * 4, radius * 4), pygame.SRCALPHA)
-        pygame.draw.circle(pulse_surf, (*color, alpha), (radius * 2, radius * 2), radius)
-        surface.blit(pulse_surf, (center[0] - radius * 2, center[1] - radius * 2))
+        if alpha > 0:
+            pulse_surf = pygame.Surface((radius * 4, radius * 4), pygame.SRCALPHA)
+            pygame.draw.circle(pulse_surf, (*color, alpha), (radius * 2, radius * 2), radius)
+            surface.blit(pulse_surf, (center[0] - radius * 2, center[1] - radius * 2))
 
     def draw_particle_trail(self, surface, center, color):
         """Draw trailing particles"""
@@ -68,9 +82,61 @@ class wompus_graphics:
             offset_y = math.cos(self.animation_time * 2 + i * 0.8) * 15
             alpha = int(255 * (1 - i / 8) * 0.3)
             
-            particle_surf = pygame.Surface((6, 6), pygame.SRCALPHA)
-            pygame.draw.circle(particle_surf, (*color, alpha), (3, 3), 3)
-            surface.blit(particle_surf, (center[0] + offset_x - 3, center[1] + offset_y - 3))
+            if alpha > 0:
+                particle_surf = pygame.Surface((6, 6), pygame.SRCALPHA)
+                pygame.draw.circle(particle_surf, (*color, alpha), (3, 3), 3)
+                surface.blit(particle_surf, (center[0] + offset_x - 3, center[1] + offset_y - 3))
+
+    def draw_pit(self, surface, center):
+        """Draw a pit with dark swirling effect"""
+        # Draw dark center
+        pygame.draw.circle(surface, COLORS['pit'], center, 15)
+        
+        # Draw swirling effect
+        for i in range(3):
+            angle = self.animation_time * 2 + i * 2.1
+            radius = 8 + i * 3
+            swirl_x = center[0] + math.cos(angle) * radius
+            swirl_y = center[1] + math.sin(angle) * radius
+            pygame.draw.circle(surface, COLORS['pit_glow'], (int(swirl_x), int(swirl_y)), 3)
+
+    def draw_breeze(self, surface, center):
+        """Draw breeze effect (indicates nearby pit)"""
+        # Draw flowing lines
+        for i in range(4):
+            angle = self.animation_time + i * 1.5
+            start_x = center[0] + math.cos(angle) * 20
+            start_y = center[1] + math.sin(angle) * 20
+            end_x = center[0] + math.cos(angle + 0.5) * 25
+            end_y = center[1] + math.sin(angle + 0.5) * 25
+            
+            pygame.draw.line(surface, COLORS['breeze'], 
+                           (int(start_x), int(start_y)), 
+                           (int(end_x), int(end_y)), 2)
+
+    def draw_stench(self, surface, center):
+        """Draw stench effect (indicates nearby Wumpus)"""
+        # Draw wavy lines
+        for i in range(3):
+            y_offset = math.sin(self.animation_time * 3 + i) * 10
+            start_pos = (center[0] - 15, center[1] + y_offset)
+            end_pos = (center[0] + 15, center[1] + y_offset)
+            
+            pygame.draw.line(surface, COLORS['stench'], start_pos, end_pos, 2)
+
+    def draw_arrow(self, surface, center):
+        """Draw an arrow"""
+        # Arrow pointing right
+        arrow_points = [
+            (center[0] - 12, center[1] - 6),
+            (center[0] + 6, center[1] - 6),
+            (center[0] + 6, center[1] - 12),
+            (center[0] + 15, center[1]),
+            (center[0] + 6, center[1] + 12),
+            (center[0] + 6, center[1] + 6),
+            (center[0] - 12, center[1] + 6)
+        ]
+        pygame.draw.polygon(surface, COLORS['arrow'], arrow_points)
 
     def draw_tile(self, x, y, tile_type):
         """Draw an individual tile with enhanced graphics"""
@@ -93,6 +159,9 @@ class wompus_graphics:
             # Add player "eye" or direction indicator
             eye_pos = (center[0] + 5, center[1] - 5)
             pygame.draw.circle(self.screen, (255, 255, 255), eye_pos, 3)
+            
+        elif tile_type == 'A':  # Agent (alternative player representation)
+            self.draw_player_agent(center)
             
         elif tile_type == 'W':  # Wumpus
             self.draw_pulsing_effect(self.screen, center, 25, COLORS['wumpus_glow'])
@@ -123,6 +192,18 @@ class wompus_graphics:
                 sparkle_y = center[1] + math.cos(self.animation_time * 4 + i * 1.5) * 20
                 pygame.draw.circle(self.screen, (255, 255, 255), (int(sparkle_x), int(sparkle_y)), 2)
                 
+        elif tile_type == 'O':  # Pit
+            self.draw_pit(self.screen, center)
+            
+        elif tile_type == 'B':  # Breeze
+            self.draw_breeze(self.screen, center)
+            
+        elif tile_type == 'S':  # Stench
+            self.draw_stench(self.screen, center)
+            
+        elif tile_type == 'R':  # Arrow
+            self.draw_arrow(self.screen, center)
+            
         elif tile_type == 'X':  # Dead
             self.draw_glowing_circle(self.screen, center, 20, COLORS['dead'], COLORS['dead'])
             
@@ -152,6 +233,28 @@ class wompus_graphics:
                 star_points.append((inner_x, inner_y))
             
             pygame.draw.polygon(self.screen, (255, 255, 255), star_points)
+        
+        elif tile_type == '.':  # Empty tile with subtle effect
+            self.draw_particle_trail(self.screen, center, COLORS['tile_empty'])
+
+    def draw_player_agent(self, center):
+        """Draw the player as an agent with enhanced graphics"""
+        # Draw body
+        self.draw_glowing_circle(self.screen, center, 16, COLORS['player'], COLORS['player_glow'])
+        
+        # Draw directional indicator (assuming facing right)
+        direction_x = center[0] + 12
+        direction_y = center[1]
+        pygame.draw.circle(self.screen, (255, 255, 255), (direction_x, direction_y), 4)
+        
+        # Draw eyes
+        eye1_pos = (center[0] - 4, center[1] - 6)
+        eye2_pos = (center[0] + 4, center[1] - 6)
+        pygame.draw.circle(self.screen, (255, 255, 255), eye1_pos, 2)
+        pygame.draw.circle(self.screen, (255, 255, 255), eye2_pos, 2)
+        
+        # Add a subtle pulsing effect
+        self.draw_pulsing_effect(self.screen, center, 20, COLORS['player_glow'], 0)
 
     def draw_ui(self):
         """Draw the user interface"""
@@ -175,15 +278,20 @@ class wompus_graphics:
         gold_surface = self.font_medium.render(gold_text, True, COLORS['ui_text'])
         self.screen.blit(gold_surface, (10, ui_y + 45))
         
+        # Arrows count
+        arrows_text = f"Arrows: {self.arrows_count}"
+        arrows_surface = self.font_medium.render(arrows_text, True, COLORS['ui_text'])
+        self.screen.blit(arrows_surface, (120, ui_y + 45))
+        
         # Position
         pos_text = f"Position: ({self.player_pos[0]}, {self.player_pos[1]})"
         pos_surface = self.font_medium.render(pos_text, True, COLORS['ui_text'])
         self.screen.blit(pos_surface, (10, ui_y + 70))
         
         # Controls hint
-        controls_text = "Use arrow keys or WASD to move"
+        controls_text = "Use arrow keys or WASD to move | SPACE to shoot | ESC for menu"
         controls_surface = self.font_small.render(controls_text, True, COLORS['ui_text'])
-        self.screen.blit(controls_surface, (WIDTH - 220, ui_y + 75))
+        self.screen.blit(controls_surface, (WIDTH - 400, ui_y + 75))
 
     def draw_board(self, board: list[list[str]]):
         """Draw the entire game board"""
@@ -211,6 +319,14 @@ class wompus_graphics:
         self.draw_ui()
         
         pygame.display.flip()
+
+    def update_game_state(self, player_pos, has_gold=False, victory=False, game_over=False, arrows=1):
+        """Update the game state variables"""
+        self.player_pos = player_pos
+        self.has_gold = has_gold
+        self.victory_achieved = victory
+        self.game_over = game_over
+        self.arrows_count = arrows
 
     def die(self):
         """Display a sad animation after death"""
@@ -334,3 +450,54 @@ class wompus_graphics:
                         return "close"
                 elif event.type == pygame.QUIT:
                     return "quit"
+        
+        return "close"
+
+    def close(self):
+        """Clean up and close the graphics"""
+        pygame.quit()
+
+# Example usage and testing
+if __name__ == "__main__":
+    # Create a simple test board
+    test_board = [
+        ['A', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
+        ['-', 'B', '-', '-', '-', '-', '-', '-', '-', '-'],
+        ['-', '-', 'O', '-', '-', '-', '-', '-', '-', '-'],
+        ['-', '-', '-', 'S', '-', '-', '-', '-', '-', '-'],
+        ['-', '-', '-', '-', 'W', '-', '-', '-', '-', '-'],
+        ['-', '-', '-', '-', '-', 'G', '-', '-', '-', '-'],
+        ['-', '-', '-', '-', '-', '-', 'R', '-', '-', '-'],
+        ['-', '-', '-', '-', '-', '-', '-', '.', '-', '-'],
+        ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
+        ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-']
+    ]
+    
+    # Initialize graphics
+    graphics = wompus_graphics()
+    graphics.update_game_state((0, 0), has_gold=False, victory=False, game_over=False, arrows=1)
+    
+    # Main game loop for testing
+    clock = pygame.time.Clock()
+    running = True
+    
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    result = graphics.options()
+                    if result == "quit":
+                        running = False
+                    elif result == "restart":
+                        print("Restart requested")
+                elif event.key == pygame.K_d:
+                    graphics.die()
+                elif event.key == pygame.K_v:
+                    graphics.victory()
+        
+        graphics.draw_board(test_board)
+        clock.tick(60)
+    
+    graphics.close()

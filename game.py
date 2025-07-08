@@ -1,5 +1,6 @@
 from world_load import WorldLoader
 from agent import Agent, AgentConfig
+from graphical_control import wompus_graphics
 import copy
 
 
@@ -7,6 +8,7 @@ class WumpusGame:
     
     def __init__(self, world_file='world.txt', agent: Agent = Agent(AgentConfig())):
         # Load world
+        self.graphics = wompus_graphics()
         self.world_loader = WorldLoader(world_file)
         loaded_board = self.world_loader.get_board()
         if not loaded_board:
@@ -43,9 +45,15 @@ class WumpusGame:
         # Place agent
         row, col = self.agent.get_position()
         self.game_world[row][col] = self.agent.agent_config.agent_symbol
+        
+        # graphics
+        self.graphics.draw_board(self.game_world)
     
     def print_board(self):
         """Print the current game board"""
+        # graphics
+        self.graphics.draw_board(self.game_world)
+        # printing on terminal
         self._update_board_display()
         print("\nCurrent Game State:")
         print("  " + " ".join([str(i) for i in range(self.world_size[1])]))
