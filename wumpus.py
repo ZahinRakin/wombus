@@ -60,15 +60,7 @@ class WumpusWorldConsole:
         print("  Death: -1000    Win: Return safely with gold")
         print("="*60)
     
-    def parse_command(self, command_str):
-        """Parse user command into action and parameters"""
-        parts = command_str.strip().lower().split()
-        if not parts:
-            return None, None
-        
-        action = parts[0]
-        params = parts[1:] if len(parts) > 1 else []
-        return action, params
+
     
     def execute_command(self, action, params):
         """Execute a game command"""
@@ -126,7 +118,16 @@ class WumpusWorldConsole:
             print(f"❌ Unknown command: {action}")
             print("💡 Type 'help' for available commands")
             return True
-    
+        def parse_command(self, command_str):
+        """Parse user command into action and parameters"""
+        parts = command_str.strip().lower().split()
+        if not parts:
+            return None, None
+        
+        action = parts[0]
+        params = parts[1:] if len(parts) > 1 else []
+        return action, params
+        
     def play(self):
         """Main game loop"""
         if not self.game:
