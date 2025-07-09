@@ -63,7 +63,12 @@ class WumpusGame:
                 print(self.game_world[i][j], end=' ')
             print()
     
-    def get_percepts(self):
+
+    
+    def is_valid_position(self, position):
+        row, col = position
+        return 0 <= row < self.world_size[0] and 0 <= col < self.world_size[1]
+        def get_percepts(self):
         """Get percepts at agent's current position"""
         percepts = []
         row, col = self.agent.get_position()
@@ -89,11 +94,7 @@ class WumpusGame:
                 self.original_world[new_row][new_col] == danger_type):
                 return True
         return False
-    
-    def is_valid_position(self, position):
-        row, col = position
-        return 0 <= row < self.world_size[0] and 0 <= col < self.world_size[1]
-    
+        
     def move_agent(self, direction):
         if self.game_over:
             return False, "Game is over!"
