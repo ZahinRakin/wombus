@@ -44,54 +44,42 @@ class KnowledgeBase:
 
         self.visited.add(position)
         self.percept_history[position] = percepts
-        self.safe_locations.add(position)  # If we're alive, this place is safe
+        self.safe_locations.add(position)  # Current position is safe
 
-        # Mark adjacent cells as safe if there's no hazard indicator
-        if "Stench" not in percepts:
-            for adj_pos in self._get_adjacent(position):
-                if adj_pos not in self.confirmed_wumpus:
-                    self.safe_locations.add(adj_pos)
+        # Get adjacent cells
+        neighbors = self._get_adjacent(position)
+
+        # If no Stench and no Breeze, mark all neighbors as safe
+        if "Stench" not in percepts and "Breeze" not in percepts:
+            for n in neighbors:
+                self.safe_locations.add(n)
         else:
-            # If "Stench" is present, mark adjacent cells as possible Wumpus
-            for adj_pos in self._get_adjacent(position):
-                if adj_pos not in self.safe_locations and adj_pos not in self.visited:
-                    self.possible_wumpus.add(adj_pos)
+            # If Stench is present, mark neighbors as possible Wumpus locations
+            if "Stench" in percepts:
+                for n in neighbors:
+                    if n not in self.safe_locations and n not in self.visited:
+                        self.possible_wumpus.add(n)
 
-        if "Breeze" not in percepts:
-            for adj_pos in self._get_adjacent(position):
-                if adj_pos not in self.confirmed_pits:
-                    self.safe_locations.add(adj_pos)
-        else:
-            # If "Breeze" is present, mark adjacent cells as possible Pits
-            for adj_pos in self._get_adjacent(position):
-                if adj_pos not in self.safe_locations and adj_pos not in self.visited:
-                    self.possible_pits.add(adj_pos)
+            # If Breeze is present, mark neighbors as possible Pit locations
+            if "Breeze" in percepts:
+                for n in neighbors:
+                    if n not in self.safe_locations and n not in self.visited:
+                        self.possible_pits.add(n)
 
-        # Logical clauses: Stench
+        # Debugging information
+        print(f"[DEBUG] Possible Wumpus: {self.possible_wumpus}")
+        print(f"[DEBUG] Possible Pits: {self.possible_pits}")
+        print(f"[DEBUG] Safe locations: {self.safe_locations}")
+
+        # Logical clauses for "Stench" and "Breeze"
         stench_sym = PropositionalLogic.to_propositional(position, 'S')
+        breeze_sym = PropositionalLogic.to_propositional(position, 'B')
         if "Stench" in percepts:
             self.prover.add_clause([stench_sym])
-            wumpus_neighbors = [
-                PropositionalLogic.to_propositional(pos, 'W') 
-                for pos in self._get_adjacent(position)
-            ]
-            self.prover.add_clause([f"¬{stench_sym}"] + wumpus_neighbors)
-            for wumpus_sym in wumpus_neighbors:
-                self.prover.add_clause([f"¬{wumpus_sym}", stench_sym])
         else:
             self.prover.add_clause([f"¬{stench_sym}"])
-
-        # Logical clauses: Breeze
-        breeze_sym = PropositionalLogic.to_propositional(position, 'B')
         if "Breeze" in percepts:
             self.prover.add_clause([breeze_sym])
-            pit_neighbors = [
-                PropositionalLogic.to_propositional(pos, 'P')
-                for pos in self._get_adjacent(position)
-            ]
-            self.prover.add_clause([f"¬{breeze_sym}"] + pit_neighbors)
-            for pit_sym in pit_neighbors:
-                self.prover.add_clause([f"¬{pit_sym}", breeze_sym])
         else:
             self.prover.add_clause([f"¬{breeze_sym}"])
 
