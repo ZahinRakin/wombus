@@ -9,26 +9,6 @@ class ResolutionProver:
         self.symbols: Set[str] = set()
         self._literal_index: Dict[str, Set[FrozenSet]] = defaultdict(set)  # New index for faster resolution
 
-    def add_clause(self, clause: List[str]) -> None:
-        """Improved with input validation and tautology detection"""
-        if not clause:
-            raise ValueError("Empty clause provided")
-        
-        # Tautology check (A ∨ ¬A)
-        seen = set()
-        for lit in clause:
-            neg = lit[1:] if lit.startswith('¬') else f"¬{lit}"
-            if neg in seen:
-                return  # Skip tautologies
-            seen.add(lit)
-        
-        frozen = frozenset(clause)
-        if frozen not in self.clauses:
-            self.clauses.add(frozen)
-            for lit in clause:
-                self.symbols.add(lit.strip('¬'))
-                self._literal_index[lit].add(frozen)  # Maintain index
-
     def resolve(self, c1: frozenset, c2: frozenset) -> Set[frozenset]:
         """Efficient resolution focusing only on complementary literals"""
         resolvents = set()
@@ -89,6 +69,26 @@ class ResolutionProver:
             steps += 1
         
         return False
+
+    def add_clause(self, clause: List[str]) -> None:
+        """Improved with input validation and tautology detection"""
+        if not clause:
+            raise ValueError("Empty clause provided")
+        
+        # Tautology check (A ∨ ¬A)
+        seen = set()
+        for lit in clause:
+            neg = lit[1:] if lit.startswith('¬') else f"¬{lit}"
+            if neg in seen:
+                return  # Skip tautologies
+            seen.add(lit)
+        
+        frozen = frozenset(clause)
+        if frozen not in self.clauses:
+            self.clauses.add(frozen)
+            for lit in clause:
+                self.symbols.add(lit.strip('¬'))
+                self._literal_index[lit].add(frozen)  # Maintain index
 
 
 
