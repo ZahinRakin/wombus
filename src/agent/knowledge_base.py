@@ -48,9 +48,24 @@ class KnowledgeBase:
 
         # Mark adjacent cells as safe if there's no hazard indicator
         if "Stench" not in percepts:
-            self._mark_adjacent_safe(position, 'wumpus')
+            for adj_pos in self._get_adjacent(position):
+                if adj_pos not in self.confirmed_wumpus:
+                    self.safe_locations.add(adj_pos)
+        else:
+            # If "Stench" is present, mark adjacent cells as possible Wumpus
+            for adj_pos in self._get_adjacent(position):
+                if adj_pos not in self.safe_locations and adj_pos not in self.visited:
+                    self.possible_wumpus.add(adj_pos)
+
         if "Breeze" not in percepts:
-            self._mark_adjacent_safe(position, 'pit')
+            for adj_pos in self._get_adjacent(position):
+                if adj_pos not in self.confirmed_pits:
+                    self.safe_locations.add(adj_pos)
+        else:
+            # If "Breeze" is present, mark adjacent cells as possible Pits
+            for adj_pos in self._get_adjacent(position):
+                if adj_pos not in self.safe_locations and adj_pos not in self.visited:
+                    self.possible_pits.add(adj_pos)
 
         # Logical clauses: Stench
         stench_sym = PropositionalLogic.to_propositional(position, 'S')
@@ -69,6 +84,7 @@ class KnowledgeBase:
         # Logical clauses: Breeze
         breeze_sym = PropositionalLogic.to_propositional(position, 'B')
         if "Breeze" in percepts:
+            self.prover.add_clause([breeze_sym])
             pit_neighbors = [
                 PropositionalLogic.to_propositional(pos, 'P')
                 for pos in self._get_adjacent(position)
@@ -79,7 +95,7 @@ class KnowledgeBase:
         else:
             self.prover.add_clause([f"¬{breeze_sym}"])
 
-        # Use resolution to try to prove Wumpus positions
+        # Use resolution to try to to_propositionalove Wumpus positions
         for neighbor in self._get_adjacent(position):
             w_sym = PropositionalLogic.to_propositional(neighbor, 'W')
             if neighbor not in self.confirmed_wumpus and self.prover.prove(w_sym):
@@ -94,9 +110,21 @@ class KnowledgeBase:
 
     def infer_dangers(self) -> None:
         """Use logical inference to determine hazards"""
-        self._infer_wumpus_positions()
-        self._infer_pit_positions()
-        self._resolve_conflicts()
+        for row in range(10):
+            for col in range(10):
+                pos = (row, col)
+                wumpus_sym = PropositionalLogic.to_propositional(pos, 'W')
+                pit_sym = PropositionalLogic.to_propositional(pos, 'P')
+
+                if self.prover.prove(wumpus_sym):
+                    self.confirmed_wumpus.add(pos)
+                elif self.prover.prove(f"¬{wumpus_sym}"):
+                    self.safe_locations.add(pos)
+
+                if self.prover.prove(pit_sym):
+                    self.confirmed_pits.add(pos)
+                elif self.prover.prove(f"¬{pit_sym}"):
+                    self.safe_locations.add(pos)
 
     def get_safe_moves(self, position: Tuple[int, int]) -> List[str]:
         """Return directions to adjacent safe, unvisited cells"""
@@ -119,15 +147,12 @@ class KnowledgeBase:
             self.safe_locations.remove(position)
 
     def _mark_adjacent_safe(self, position: Tuple[int, int], hazard_type: str) -> None:
-        """Mark adjacent cells as safe for specific hazard"""
-        x, y = position
-        adjacent = [(x-1,y), (x+1,y), (x,y-1), (x,y+1)]
-        
-        for pos in adjacent:
-            if hazard_type == 'wumpus' and pos in self.possible_wumpus:
-                self.possible_wumpus.remove(pos)
-            elif hazard_type == 'pit' and pos in self.possible_pits:
-                self.possible_pits.remove(pos)
+        """Mark adjacent cells as safe"""
+        for pos in self._get_adjacent(position):
+            if hazard_type == 'wumpus':
+                self.possible_wumpus.discard(pos)
+            elif hazard_type == 'pit':
+                self.possible_pits.discard(pos)
             self.safe_locations.add(pos)
 
     def _get_adjacent(self, position: Tuple[int, int]) -> List[Tuple[int, int]]:

@@ -66,41 +66,23 @@ class ResolutionProver:
         
         while queue and steps < max_steps:
             current = queue.popleft()
-            
-            # Get clauses containing complementary literals
             for lit in current:
                 complement = lit[1:] if lit.startswith('¬') else f"¬{lit}"
                 for other_clause in self._literal_index.get(complement, set()):
-                    if other_clause not in seen:
-                        continue
-                    
-                    resolvent = (current | other_clause) - {lit, complement}
-                    
-                    if not resolvent:  # Empty clause found
-                        return True
-                    
-                    if resolvent not in seen:
-                        seen.add(resolvent)
-                        queue.append(resolvent)
-                        # Update index
-                        for l in resolvent:
-                            self._literal_index[l].add(resolvent)
-            
+                    resolvents = self.resolve(current, other_clause)
+                    for resolvent in resolvents:
+                        if not resolvent:  # Empty clause found
+                            return True
+                        if resolvent not in seen:
+                            seen.add(resolvent)
+                            queue.append(resolvent)
             steps += 1
         
         return False
 
-
-
     def get_entailed_literals(self) -> Set[str]:
         """Find all literals that are entailed by the KB"""
-        entailed = set()
-        for symbol in self.symbols:
-            if self.prove(symbol):
-                entailed.add(symbol)
-            if self.prove(f"¬{symbol}"):
-                entailed.add(f"¬{symbol}")
-        return entailed
+        return {symbol for symbol in self.symbols if self.prove(symbol) or self.prove(f"¬{symbol}")}
 
 class PropositionalLogic:
     @staticmethod

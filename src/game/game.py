@@ -88,10 +88,15 @@ class WumpusGame:
 
     def get_world_info(self) -> Dict:
         """Return complete world information"""
+        elements = {'W': [], 'P': [], 'G': []}
+        for i, row in enumerate(self.original_world):
+            for j, val in enumerate(row):
+                if val in elements:
+                    elements[val].append((i, j))
         return {
-            'wumpus_positions': self._find_elements('W'),
-            'pit_positions': self._find_elements('P'),
-            'gold_positions': self._find_elements('G'),
+            'wumpus_positions': elements['W'],
+            'pit_positions': elements['P'],
+            'gold_positions': elements['G'],
             'world_size': self.world_size,
             'agent_position': self.agent.position
         }
@@ -195,18 +200,10 @@ class WumpusGame:
 
     def _update_board_state(self) -> None:
         """Update the game board representation"""
-        self.game_world = copy.deepcopy(self.original_world)
-        
-        # Mark visited cells
         for row, col in self.agent.visited_cells:
             if (row, col) != self.agent.position:
                 self.game_world[row][col] = self.agent.agent_config.trail_symbol
-        
-        # Place agent
-        row, col = self.agent.position
-        self.game_world[row][col] = self.agent.agent_config.agent_symbol
-        
-        # Update display
+        self.game_world[self.agent.position[0]][self.agent.position[1]] = self.agent.agent_config.agent_symbol
         self._update_display(f"Step {self.step_count}")
 
     def _handle_death(self, message: str) -> None:

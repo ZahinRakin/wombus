@@ -69,31 +69,15 @@ def create_agent(difficulty: Optional[str]) -> Agent:
 def run_manual_mode(game: WumpusGame) -> None:
     """Run game in manual control mode"""
     print("\nManual Control Mode")
-    print("Use game.execute_action(action, direction) to play")
-    print("Actions: 'move', 'shoot', 'grab'")
-    print("Directions: 'up', 'down', 'left', 'right'")
-    
-    # Example manual control loop
+    print("Actions: 'move', 'shoot', 'grab', 'quit'")
     while not game.game_over:
         try:
-            action = input("Enter action (or 'quit'): ").strip().lower()
+            action = input("Enter action: ").strip().lower()
             if action == 'quit':
                 break
-                
-            if action in ['move', 'shoot']:
-                direction = input(f"Enter direction for {action}: ").strip().lower()
-                success, message = game.execute_action(action, direction)
-            elif action == 'grab':
-                success, message = game.execute_action(action)
-            else:
-                print("Invalid action")
-                continue
-                
+            direction = input("Enter direction (if applicable): ").strip().lower() if action in ['move', 'shoot'] else None
+            success, message = game.execute_action(action, direction)
             print(message)
-            
-        except KeyboardInterrupt:
-            print("\nGame interrupted")
-            break
         except Exception as e:
             print(f"Error: {e}")
 

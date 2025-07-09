@@ -96,8 +96,8 @@ class Agent:
         self.position_history.append(self.position)
 
         print(f"[KNOWLEDGE] Added percepts at {self.position}: {percepts}")
-        print(f"[KNOWLEDGE] Possible Wumpus: {self.knowledge_base.possible_wumpus}")
-        print(f"[KNOWLEDGE] Possible Pits: {self.knowledge_base.possible_pits}")
+        print(f"[DEBUG] Possible Wumpus: {self.knowledge_base.possible_wumpus}")
+        print(f"[DEBUG] Possible Pits: {self.knowledge_base.possible_pits}")
         print(f"[KNOWLEDGE] Safe locations: {self.knowledge_base.safe_locations}")
 
     def decide_action(self, percepts: List[str]) -> Tuple[str, str]:
@@ -152,22 +152,28 @@ class Agent:
         return None
 
     def _get_direction_to(self, target: Tuple[int, int]) -> Optional[str]:
+        """Find the direction to move toward a target position"""
         from collections import deque
         queue = deque([(self.position, [])])
         visited = {self.position}
         while queue:
             current, path = queue.popleft()
-            if current == target and path:
-                prev, curr = path[0], current
-                for dir, (dr, dc) in self.directions.items():
-                    if (self.position[0] + dr, self.position[1] + dc) == prev:
-                        return dir
+            if current == target:
+                if path:
+                    dr, dc = path[0]
+                    for direction, (drow, dcol) in self.directions.items():
+                        if (dr, dc) == (drow, dcol):
+                            return direction
             for direction, (dr, dc) in self.directions.items():
-                nr, nc = current[0] + dr, current[1] + dc
-                neighbor = (nr, nc)
-                if 0 <= nr < 10 and 0 <= nc < 10 and neighbor in self.knowledge_base.safe_locations and neighbor not in visited:
+                neighbor = (current[0] + dr, current[1] + dc)
+                if (0 <= neighbor[0] < 10 and 0 <= neighbor[1] < 10 and
+                        neighbor not in visited and
+                        neighbor not in self.knowledge_base.confirmed_wumpus and
+                        neighbor not in self.knowledge_base.confirmed_pits and
+                        neighbor not in self.knowledge_base.possible_wumpus and
+                        neighbor not in self.knowledge_base.possible_pits):
                     visited.add(neighbor)
-                    queue.append((neighbor, path + [neighbor]))
+                    queue.append((neighbor, path + [(dr, dc)]))
         return None
 
     def _detect_loop(self) -> bool:
@@ -187,22 +193,12 @@ class Agent:
         return None
 
     def _calculate_risky_move(self) -> Optional[str]:
+        """Calculate a risky move"""
         for direction, (dr, dc) in self.directions.items():
             nr, nc = self.position[0] + dr, self.position[1] + dc
             pos = (nr, nc)
-
-            if (
-                0 <= nr < 10 and 0 <= nc < 10 and
-                pos not in self.visited_cells and
-                pos not in self.knowledge_base.confirmed_wumpus and
-                pos not in self.knowledge_base.confirmed_pits and
-                pos not in self.knowledge_base.possible_wumpus and
-                pos not in self.knowledge_base.possible_pits
-            ):
-                print(f"[RISK CHECK] Considering risky but unexplored cell {pos}")
+            if 0 <= nr < 10 and 0 <= nc < 10 and pos not in self.visited_cells:
                 return direction
-
-        print("[RISK CHECK] No acceptable risky moves found")
         return None
 
 
