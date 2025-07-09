@@ -126,18 +126,7 @@ class WumpusGame:
         
         return True, "Move successful"
     
-    def grab_gold(self):
-        if self.game_over:
-            return False, "Game is over!"
-        
-        row, col = self.agent.get_position()
-        if self.original_world[row][col] == 'G':
-            if self.agent.grab_gold():
-                return True, "✨ You grabbed the gold!"
-            else:
-                return False, "You already have the gold!"
-        else:
-            return False, "No gold here!"
+   
     
     def shoot_arrow(self, direction):
         if self.game_over:
@@ -158,6 +147,19 @@ class WumpusGame:
             current_col += dc
         
         return True, "Arrow missed!"
+    
+    def grab_gold(self):
+        if self.game_over:
+            return False, "Game is over!"
+        
+        row, col = self.agent.get_position()
+        if self.original_world[row][col] == 'G':
+            if self.agent.grab_gold():
+                return True, "✨ You grabbed the gold!"
+            else:
+                return False, "You already have the gold!"
+        else:
+            return False, "No gold here!"
     
     def get_game_status(self):
         agent_status = self.agent.get_status()

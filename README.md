@@ -2,7 +2,7 @@
 
 ## Description
 
-Wombus is a Python-based implementation of the classic Wumpus World AI problem. It provides both a console-based and graphical interface for users to explore and solve the Wumpus World challenge. The game involves navigating a grid-based world, avoiding hazards like pits and the Wumpus, and collecting gold to achieve victory.
+Wumpus is a Python-based implementation of the classic Wumpus World AI problem. It provides both a console-based and graphical interface for users to explore and solve the Wumpus World challenge. The game involves navigating a grid-based world, avoiding hazards like pits and the Wumpus, and collecting gold to achieve victory.
 
 ## Features
 
