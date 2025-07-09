@@ -1,8 +1,13 @@
+# import random
 import pygame
 import time
 import math
+from typing import List, Tuple, Dict, Optional
+from pathlib import Path
+from ..agent.agent import Agent
+from ..environment.world_load import WorldLoader
 
-# Enhanced visual settings
+# Constants
 TILE_SIZE = 60
 ROWS, COLS = 10, 10
 WIDTH, HEIGHT = COLS * TILE_SIZE, ROWS * TILE_SIZE + 100  # Extra space for UI
@@ -26,30 +31,28 @@ COLORS = {
     'ui_bg': (35, 40, 55),
     'arrow': (255, 140, 0),
     'breeze': (173, 216, 230),
-    'stench': (144, 238, 144)
+    'stench': (144, 238, 144),
+    'trail': (100, 100, 100),
+    'trail_glow': (150, 150, 150),
+    'safe': (0, 100, 0, 50),  # Semi-transparent green
+    'danger': (100, 0, 0, 50)  # Semi-transparent red
 }
 
-class wompus_graphics:
+class WumpusGraphics:
     def __init__(self):
         pygame.init()
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
-        pygame.display.set_caption("Wumpus World - Enhanced Edition")
+        pygame.display.set_caption("Wumpus World AI Agent")
+        self.clock = pygame.time.Clock()
+        self.animation_time = time.time()
         
         # Load fonts
         self.font_large = pygame.font.Font(None, 36)
         self.font_medium = pygame.font.Font(None, 24)
         self.font_small = pygame.font.Font(None, 18)
         
-        # Game state variables
-        self.player_pos = (0, 0)
-        self.has_gold = False
-        self.victory_achieved = False
-        self.game_over = False
-        self.animation_time = 0
-        self.arrows_count = 1
-        
-        # Visual effects
-        self.particle_effects = []
+        # Load images if available
+        self.images = self._load_images()
         
     def draw_glowing_circle(self, surface, center, radius, color, glow_color):
         """Draw a circle with a glowing effect"""
@@ -138,197 +141,126 @@ class wompus_graphics:
         ]
         pygame.draw.polygon(surface, COLORS['arrow'], arrow_points)
 
-    def draw_tile(self, x, y, tile_type):
-        """Draw an individual tile with enhanced graphics"""
-        pixel_x = x * TILE_SIZE
-        pixel_y = y * TILE_SIZE
-        center = (pixel_x + TILE_SIZE // 2, pixel_y + TILE_SIZE // 2)
+    def draw_wumpus(self, surface, center):
+        self.draw_pulsing_effect(surface, center, 25, COLORS['wumpus_glow'])
+        self.draw_glowing_circle(surface, center, 20, COLORS['wumpus'], COLORS['wumpus_glow'])
         
-        # Draw tile background with gradient effect
-        tile_rect = pygame.Rect(pixel_x, pixel_y, TILE_SIZE, TILE_SIZE)
-        pygame.draw.rect(self.screen, COLORS['tile_empty'], tile_rect)
-        
-        # Add subtle inner shadow
-        pygame.draw.rect(self.screen, COLORS['tile_border'], tile_rect, 2)
-        
-        # Draw tile contents based on type
-        if tile_type == 'P':  # Player
-            self.draw_particle_trail(self.screen, center, COLORS['player'])
-            self.draw_glowing_circle(self.screen, center, 18, COLORS['player'], COLORS['player_glow'])
-            
-            # Add player "eye" or direction indicator
-            eye_pos = (center[0] + 5, center[1] - 5)
-            pygame.draw.circle(self.screen, (255, 255, 255), eye_pos, 3)
-            
-        elif tile_type == 'A':  # Agent (alternative player representation)
-            self.draw_player_agent(center)
-            
-        elif tile_type == 'W':  # Wumpus
-            self.draw_pulsing_effect(self.screen, center, 25, COLORS['wumpus_glow'])
-            self.draw_glowing_circle(self.screen, center, 20, COLORS['wumpus'], COLORS['wumpus_glow'])
-            
-            # Add menacing eyes
-            eye1_pos = (center[0] - 6, center[1] - 8)
-            eye2_pos = (center[0] + 6, center[1] - 8)
-            pygame.draw.circle(self.screen, (255, 0, 0), eye1_pos, 3)
-            pygame.draw.circle(self.screen, (255, 0, 0), eye2_pos, 3)
-            
-        elif tile_type == 'G':  # Gold
-            self.draw_pulsing_effect(self.screen, center, 22, COLORS['gold_glow'])
-            
-            # Draw diamond shape for gold
-            diamond_points = [
-                (center[0], center[1] - 15),
-                (center[0] + 12, center[1]),
-                (center[0], center[1] + 15),
-                (center[0] - 12, center[1])
-            ]
-            pygame.draw.polygon(self.screen, COLORS['gold'], diamond_points)
-            pygame.draw.polygon(self.screen, COLORS['gold_glow'], diamond_points, 2)
-            
-            # Add sparkle effect
-            for i in range(4):
-                sparkle_x = center[0] + math.sin(self.animation_time * 4 + i * 1.5) * 20
-                sparkle_y = center[1] + math.cos(self.animation_time * 4 + i * 1.5) * 20
-                pygame.draw.circle(self.screen, (255, 255, 255), (int(sparkle_x), int(sparkle_y)), 2)
-                
-        elif tile_type == 'O':  # Pit
-            self.draw_pit(self.screen, center)
-            
-        elif tile_type == 'B':  # Breeze
-            self.draw_breeze(self.screen, center)
-            
-        elif tile_type == 'S':  # Stench
-            self.draw_stench(self.screen, center)
-            
-        elif tile_type == 'R':  # Arrow
-            self.draw_arrow(self.screen, center)
-            
-        elif tile_type == 'X':  # Dead
-            self.draw_glowing_circle(self.screen, center, 20, COLORS['dead'], COLORS['dead'])
-            
-            # Draw X
-            pygame.draw.line(self.screen, (255, 255, 255), 
-                           (center[0] - 12, center[1] - 12), 
-                           (center[0] + 12, center[1] + 12), 4)
-            pygame.draw.line(self.screen, (255, 255, 255), 
-                           (center[0] + 12, center[1] - 12), 
-                           (center[0] - 12, center[1] + 12), 4)
-                           
-        elif tile_type == 'V':  # Victory
-            self.draw_pulsing_effect(self.screen, center, 30, COLORS['victory'], math.pi)
-            self.draw_glowing_circle(self.screen, center, 22, COLORS['victory'], COLORS['victory'])
-            
-            # Draw crown or star
-            star_points = []
-            for i in range(5):
-                angle = i * 2 * math.pi / 5 - math.pi / 2
-                outer_x = center[0] + math.cos(angle) * 15
-                outer_y = center[1] + math.sin(angle) * 15
-                star_points.append((outer_x, outer_y))
-                
-                angle += math.pi / 5
-                inner_x = center[0] + math.cos(angle) * 8
-                inner_y = center[1] + math.sin(angle) * 8
-                star_points.append((inner_x, inner_y))
-            
-            pygame.draw.polygon(self.screen, (255, 255, 255), star_points)
-        
-        elif tile_type == '.':  # Empty tile with subtle effect
-            self.draw_particle_trail(self.screen, center, COLORS['tile_empty'])
+        # Add menacing eyes
+        eye1_pos = (center[0] - 6, center[1] - 8)
+        eye2_pos = (center[0] + 6, center[1] - 8)
+        pygame.draw.circle(surface, (255, 0, 0), eye1_pos, 3)
+        pygame.draw.circle(surface, (255, 0, 0), eye2_pos, 3)
 
-    def draw_player_agent(self, center):
-        """Draw the player as an agent with enhanced graphics"""
-        # Draw body
-        self.draw_glowing_circle(self.screen, center, 16, COLORS['player'], COLORS['player_glow'])
+    def draw_agent(self, surface, center):
+        self.draw_particle_trail(surface, center, COLORS['player'])
+        self.draw_glowing_circle(surface, center, 18, COLORS['player'], COLORS['player_glow'])
         
-        # Draw directional indicator (assuming facing right)
-        direction_x = center[0] + 12
-        direction_y = center[1]
-        pygame.draw.circle(self.screen, (255, 255, 255), (direction_x, direction_y), 4)
-        
-        # Draw eyes
-        eye1_pos = (center[0] - 4, center[1] - 6)
-        eye2_pos = (center[0] + 4, center[1] - 6)
-        pygame.draw.circle(self.screen, (255, 255, 255), eye1_pos, 2)
-        pygame.draw.circle(self.screen, (255, 255, 255), eye2_pos, 2)
-        
-        # Add a subtle pulsing effect
-        self.draw_pulsing_effect(self.screen, center, 20, COLORS['player_glow'], 0)
+        # Add player "eye" or direction indicator
+        eye_pos = (center[0] + 5, center[1] - 5)
+        pygame.draw.circle(surface, (255, 255, 255), eye_pos, 3)
 
-    def draw_ui(self):
+    def draw_gold(self, surface, center):
+        self.draw_pulsing_effect(surface, center, 22, COLORS['gold_glow'])
+        # Draw diamond shape for gold
+        diamond_points = [
+            (center[0], center[1] - 15),
+            (center[0] + 12, center[1]),
+            (center[0], center[1] + 15),
+            (center[0] - 12, center[1])
+        ]
+        pygame.draw.polygon(surface, COLORS['gold'], diamond_points)
+        pygame.draw.polygon(surface, COLORS['gold_glow'], diamond_points, 2)
+        
+        # Add sparkle effect
+        for i in range(4):
+            sparkle_x = center[0] + math.sin(self.animation_time * 4 + i * 1.5) * 20
+            sparkle_y = center[1] + math.cos(self.animation_time * 4 + i * 1.5) * 20
+            pygame.draw.circle(surface, (255, 255, 255), (int(sparkle_x), int(sparkle_y)), 2)
+
+    def draw_trail(self, surface, center):
+        # Draw a subtle dot to mark visited tiles
+        pygame.draw.circle(surface, COLORS['trail'], center, 4)
+        
+        # Add a subtle glow effect around the dot
+        pygame.draw.circle(surface, COLORS['trail_glow'], center, 8, 2)
+        
+        # Optional: Add a pulsing effect to make it more visible
+        pulse_radius = 6 + int(2 * math.sin(self.animation_time * 3))
+        pygame.draw.circle(surface, COLORS['trail'], center, pulse_radius, 1)
+
+    # def draw_tile(self, x, y, tile_type):
+    #     """Draw an individual tile with enhanced graphics"""
+    #     pixel_x = x * TILE_SIZE
+    #     pixel_y = y * TILE_SIZE
+    #     center = (pixel_x + TILE_SIZE // 2, pixel_y + TILE_SIZE // 2)
+        
+    #     # Draw tile background with gradient effect
+    #     tile_rect = pygame.Rect(pixel_x, pixel_y, TILE_SIZE, TILE_SIZE)
+    #     pygame.draw.rect(self.screen, COLORS['tile_empty'], tile_rect)
+        
+    #     # Add subtle inner shadow
+    #     pygame.draw.rect(self.screen, COLORS['tile_border'], tile_rect, 2)
+        
+    #     # Draw tile contents based on type
+    #     if tile_type == 'A': # player or agent 
+    #         self.draw_agent(self.screen, center)
+            
+    #     elif tile_type == 'W':  # Wumpus
+    #         self.draw_wumpus(self.screen, center)
+            
+    #     elif tile_type == 'G':  # Gold
+    #         self.draw_gold(self.screen, center)
+                
+    #     elif tile_type == 'P':  # Pit
+    #         self.draw_pit(self.screen, center)
+            
+    #     elif tile_type == 'B':  # Breeze
+    #         self.draw_breeze(self.screen, center)
+            
+    #     elif tile_type == 'S':  # Stench
+    #         self.draw_stench(self.screen, center)
+            
+    #     elif tile_type == 'R':  # Arrow
+    #         self.draw_arrow(self.screen, center)
+        
+    #     elif tile_type == '.':  # trails of wumpus
+    #         self.draw_trail(self.screen, center)
+
+    def draw_ui(self, 
+                has_gold: bool,
+                arrows_count: int,
+                player_pos: tuple,
+                status_text: str):
         """Draw the user interface"""
         ui_y = ROWS * TILE_SIZE
         ui_rect = pygame.Rect(0, ui_y, WIDTH, 100)
         pygame.draw.rect(self.screen, COLORS['ui_bg'], ui_rect)
         pygame.draw.line(self.screen, COLORS['tile_border'], (0, ui_y), (WIDTH, ui_y), 2)
         
-        # Game status
-        status_text = "WUMPUS WORLD"
-        if self.victory_achieved:
-            status_text = "VICTORY!"
-        elif self.game_over:
-            status_text = "GAME OVER"
-        
         status_surface = self.font_large.render(status_text, True, COLORS['ui_text'])
         self.screen.blit(status_surface, (10, ui_y + 10))
         
         # Gold status
-        gold_text = f"Gold: {'✓' if self.has_gold else '✗'}"
+        gold_text = f"Gold: {'✓' if has_gold else '✗'}"
         gold_surface = self.font_medium.render(gold_text, True, COLORS['ui_text'])
         self.screen.blit(gold_surface, (10, ui_y + 45))
         
         # Arrows count
-        arrows_text = f"Arrows: {self.arrows_count}"
+        arrows_text = f"Arrows: {arrows_count}"
         arrows_surface = self.font_medium.render(arrows_text, True, COLORS['ui_text'])
         self.screen.blit(arrows_surface, (120, ui_y + 45))
         
         # Position
-        pos_text = f"Position: ({self.player_pos[0]}, {self.player_pos[1]})"
+        pos_text = f"Position: ({player_pos[0]}, {player_pos[1]})"
         pos_surface = self.font_medium.render(pos_text, True, COLORS['ui_text'])
         self.screen.blit(pos_surface, (10, ui_y + 70))
         
         # Controls hint
-        controls_text = "Use arrow keys or WASD to move | SPACE to shoot | ESC for menu"
+        controls_text = "ESC for menu" #"Use arrow keys or WASD to move | SPACE to shoot | ESC for menu"
         controls_surface = self.font_small.render(controls_text, True, COLORS['ui_text'])
         self.screen.blit(controls_surface, (WIDTH - 400, ui_y + 75))
 
-    def draw_board(self, board: list[list[str]]):
-        """Draw the entire game board"""
-        self.screen.fill(COLORS['background'])
-        
-        # Update animation time
-        self.animation_time = time.time()
-        
-        # Draw grid background
-        for x in range(COLS + 1):
-            pygame.draw.line(self.screen, COLORS['tile_border'], 
-                           (x * TILE_SIZE, 0), (x * TILE_SIZE, ROWS * TILE_SIZE))
-        for y in range(ROWS + 1):
-            pygame.draw.line(self.screen, COLORS['tile_border'], 
-                           (0, y * TILE_SIZE), (COLS * TILE_SIZE, y * TILE_SIZE))
-        
-        # Draw tiles
-        for y in range(ROWS):
-            for x in range(COLS):
-                tile = board[y][x]
-                if tile != '-':
-                    self.draw_tile(x, y, tile)
-        
-        # Draw UI
-        self.draw_ui()
-        
-        pygame.display.flip()
-
-    def update_game_state(self, player_pos, has_gold=False, victory=False, game_over=False, arrows=1):
-        """Update the game state variables"""
-        self.player_pos = player_pos
-        self.has_gold = has_gold
-        self.victory_achieved = victory
-        self.game_over = game_over
-        self.arrows_count = arrows
-
-    def die(self):
+    def animate_death(self):
         """Display a sad animation after death"""
         # Create a dark overlay
         overlay = pygame.Surface((WIDTH, HEIGHT))
@@ -364,7 +296,7 @@ class wompus_graphics:
             pygame.display.flip()
             time.sleep(0.05)
 
-    def victory(self):
+    def animate_victory(self):
         """Display a happy animation after winning"""
         # Create a bright overlay
         overlay = pygame.Surface((WIDTH, HEIGHT))
@@ -400,7 +332,7 @@ class wompus_graphics:
             pygame.display.flip()
             time.sleep(0.03)
 
-    def options(self):
+    def display_options(self):
         """Display options menu: restart, take snapshot, quit"""
         # Create menu overlay
         menu_overlay = pygame.Surface((WIDTH, HEIGHT))
@@ -457,47 +389,121 @@ class wompus_graphics:
         """Clean up and close the graphics"""
         pygame.quit()
 
-# Example usage and testing
-if __name__ == "__main__":
-    # Create a simple test board
-    test_board = [
-        ['A', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
-        ['-', 'B', '-', '-', '-', '-', '-', '-', '-', '-'],
-        ['-', '-', 'O', '-', '-', '-', '-', '-', '-', '-'],
-        ['-', '-', '-', 'S', '-', '-', '-', '-', '-', '-'],
-        ['-', '-', '-', '-', 'W', '-', '-', '-', '-', '-'],
-        ['-', '-', '-', '-', '-', 'G', '-', '-', '-', '-'],
-        ['-', '-', '-', '-', '-', '-', 'R', '-', '-', '-'],
-        ['-', '-', '-', '-', '-', '-', '-', '.', '-', '-'],
-        ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
-        ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-']
-    ]
-    
-    # Initialize graphics
-    graphics = wompus_graphics()
-    graphics.update_game_state((0, 0), has_gold=False, victory=False, game_over=False, arrows=1)
-    
-    # Main game loop for testing
-    clock = pygame.time.Clock()
-    running = True
-    
-    while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    result = graphics.options()
-                    if result == "quit":
-                        running = False
-                    elif result == "restart":
-                        print("Restart requested")
-                elif event.key == pygame.K_d:
-                    graphics.die()
-                elif event.key == pygame.K_v:
-                    graphics.victory()
+    def _load_images(self) -> Dict[str, pygame.Surface]:
+        """Load graphical assets if available"""
+        images = {}
+        try:
+            asset_path = Path("assets")
+            if asset_path.exists():
+                images['gold'] = pygame.image.load(asset_path / "gold.png").convert_alpha()
+                images['wumpus'] = pygame.image.load(asset_path / "wumpus.png").convert_alpha()
+        except:
+            print("Could not load images, using default rendering")
+        return images
+
+    def draw_knowledge(self, kb, current_pos: Tuple[int, int]) -> None:
+        """Visualize agent's knowledge base"""
+        for y in range(ROWS):
+            for x in range(COLS):
+                pos = (y, x)
+                if pos == current_pos:
+                    continue
+                
+                pixel_x = x * TILE_SIZE
+                pixel_y = y * TILE_SIZE
+                rect = pygame.Rect(pixel_x, pixel_y, TILE_SIZE, TILE_SIZE)
+                
+                # Draw knowledge overlay
+                if pos in kb.safe_locations:
+                    pygame.draw.rect(self.screen, COLORS['safe'], rect)
+                elif pos in kb.possible_wumpus or pos in kb.possible_pits:
+                    pygame.draw.rect(self.screen, COLORS['danger'], rect)
+
+    def draw_board(self, board: List[List[str]], agent: Agent, status: str = "Exploring") -> None:
+        """Draw the complete game board with agent knowledge"""
+        self.screen.fill(COLORS['background'])
+        self.animation_time = time.time()
         
-        graphics.draw_board(test_board)
-        clock.tick(60)
-    
-    graphics.close()
+        # Draw grid
+        for x in range(COLS + 1):
+            pygame.draw.line(self.screen, COLORS['tile_border'], 
+                           (x * TILE_SIZE, 0), (x * TILE_SIZE, ROWS * TILE_SIZE))
+        for y in range(ROWS + 1):
+            pygame.draw.line(self.screen, COLORS['tile_border'], 
+                           (0, y * TILE_SIZE), (COLS * TILE_SIZE, y * TILE_SIZE))
+        
+        # Draw agent's knowledge first (as background)
+        if hasattr(agent, 'knowledge_base'):
+            self.draw_knowledge(agent.knowledge_base, agent.position)
+        
+        # Draw tiles
+        for y in range(ROWS):
+            for x in range(COLS):
+                self._draw_tile(x, y, board[y][x])
+        
+        # Draw UI
+        self._draw_ui(agent, status)
+        
+        pygame.display.flip()
+        self.clock.tick(60)
+
+    def _draw_tile(self, x: int, y: int, tile_type: str) -> None:
+        """Draw individual tile with animations"""
+        pixel_x = x * TILE_SIZE
+        pixel_y = y * TILE_SIZE
+        center = (pixel_x + TILE_SIZE // 2, pixel_y + TILE_SIZE // 2)
+        
+        # Tile background
+        tile_rect = pygame.Rect(pixel_x, pixel_y, TILE_SIZE, TILE_SIZE)
+        pygame.draw.rect(self.screen, COLORS['tile_empty'], tile_rect)
+        
+        # Draw contents
+        if tile_type == 'A':
+            self.draw_agent(self.screen, center)
+        elif tile_type == 'W':
+            self.draw_wumpus(self.screen, center)
+        elif tile_type == 'B':
+            self.draw_breeze(self.screen, center)
+        elif tile_type == 'S':
+            self.draw_stench(self.screen, center)
+        elif tile_type == 'G':
+            self.draw_gold(self.screen, center)
+        elif tile_type == 'P':
+            self.draw_pit(self.screen, center)
+        elif tile_type == '.':
+            self.draw_trail(self.screen ,center)
+
+    def _draw_ui(self, agent: Agent, status: str) -> None:
+        """Draw the information panel"""
+        ui_y = ROWS * TILE_SIZE
+        pygame.draw.rect(self.screen, COLORS['ui_bg'], (0, ui_y, WIDTH, 100))
+        
+        # Status text
+        status_surf = self.font_large.render(f"Status: {status}", True, COLORS['ui_text'])
+        self.screen.blit(status_surf, (10, ui_y + 10))
+        
+        # Agent info
+        info_lines = [
+            f"Position: {agent.position}",
+            f"Arrows: {agent.arrow_count}",
+            f"Gold: {'Yes' if agent.has_gold else 'No'}",
+            f"Score: {agent.score}"
+        ]
+        
+        for i, line in enumerate(info_lines):
+            text = self.font_medium.render(line, True, COLORS['ui_text'])
+            self.screen.blit(text, (10, ui_y + 40 + i * 20))
+        
+        # Percepts
+        percepts = agent.knowledge_base.percept_history.get(agent.position, [])
+        if percepts:
+            percept_text = "Percepts: " + ", ".join(percepts)
+            text = self.font_small.render(percept_text, True, COLORS['ui_text'])
+            self.screen.blit(text, (WIDTH - 300, ui_y + 80))
+
+    def close(self) -> None:
+        """Clean up resources"""
+        pygame.quit()
+
+
+
