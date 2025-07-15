@@ -50,9 +50,6 @@ class WorldLoader:
         """Validate world configuration"""
         if not any('G' in row for row in self.board):
             raise ValueError("World must contain at least one gold piece")
-        
-        if sum(row.count('W') for row in self.board) > 1:
-            raise ValueError("World can have at most one Wumpus")
 
     def get_board(self) -> List[List[str]]:
         """Get a deep copy of the board"""
