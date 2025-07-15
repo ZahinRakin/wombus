@@ -1,4 +1,4 @@
-# import random
+import random
 import pygame
 import time
 import math
@@ -9,13 +9,19 @@ from ..agent.agent import Agent
 # Constants
 TILE_SIZE = 60
 ROWS, COLS = 10, 10
-WIDTH, HEIGHT = COLS * TILE_SIZE, ROWS * TILE_SIZE + 100  # Extra space for UI
+BOARD_WIDTH, BOARD_HEIGHT = COLS * TILE_SIZE, ROWS * TILE_SIZE
+UI_HEIGHT = 120
+MIN_WINDOW_WIDTH = 800
+MIN_WINDOW_HEIGHT = 700
 
 # Modern color palette
 COLORS = {
-    'background': (20, 25, 40),
+    'background': (15, 20, 35),
+    'background_gradient_top': (25, 35, 55),
+    'background_gradient_bottom': (10, 15, 25),
     'tile_empty': (45, 52, 70),
-    'tile_border': (30, 35, 50),
+    'tile_border': (70, 80, 100),
+    'tile_highlight': (90, 100, 120),
     'player': (64, 224, 255),
     'player_glow': (30, 144, 255),
     'wumpus': (220, 20, 60),
@@ -26,52 +32,286 @@ COLORS = {
     'pit_glow': (50, 50, 50),
     'victory': (50, 255, 50),
     'dead': (255, 50, 50),
-    'ui_text': (200, 200, 200),
-    'ui_bg': (35, 40, 55),
+    'ui_text': (220, 220, 220),
+    'ui_text_highlight': (255, 255, 255),
+    'ui_bg': (25, 30, 45),
+    'ui_border': (60, 70, 90),
     'arrow': (255, 140, 0),
-    'breeze': (100, 200, 255),      # Light blue for wind/air
-    'stench': (255, 100, 100),      # Light red for danger/smell
+    'breeze': (100, 200, 255),
+    'stench': (255, 100, 100),
     'trail': (100, 100, 100),
     'trail_glow': (150, 150, 150),
-    'safe': (0, 100, 0, 50),        # Semi-transparent green
-    'danger': (100, 0, 0, 50)       # Semi-transparent red
+    'safe': (0, 100, 0, 50),
+    'danger': (100, 0, 0, 50),
+    'title_primary': (255, 255, 255),
+    'title_secondary': (180, 180, 180),
+    'title_glow': (100, 150, 255)
 }
 
 class WumpusGraphics:
     def __init__(self):
         pygame.init()
-        self.screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)  # Make window resizable
-        pygame.display.set_caption("Wumpus World AI Agent")
+        self.window_width = MIN_WINDOW_WIDTH
+        self.window_height = MIN_WINDOW_HEIGHT
+        self.screen = pygame.display.set_mode((self.window_width, self.window_height), pygame.RESIZABLE)
+        pygame.display.set_caption("🎮 Wumpus World - AI Agent Adventure")
         self.clock = pygame.time.Clock()
         self.animation_time = time.time()
+        self.particles = []
+        
+        # Calculate board position (centered)
+        self.board_x = (self.window_width - BOARD_WIDTH) // 2
+        self.board_y = (self.window_height - BOARD_HEIGHT - UI_HEIGHT) // 2 + 40  # 40px for title
         
         # Load fonts
+        self.font_title = pygame.font.Font(None, 48)
         self.font_large = pygame.font.Font(None, 36)
         self.font_medium = pygame.font.Font(None, 24)
         self.font_small = pygame.font.Font(None, 18)
         
-        # Load images if available
+        # Load images
         self.images = self._load_images()
+        
+        # Background animation
+        self.stars = [(pygame.math.Vector2(random.randint(0, self.window_width), 
+                                         random.randint(0, self.window_height)), 
+                      random.uniform(0.5, 2.0)) for _ in range(50)]
 
     def handle_resize(self, event):
-        # Keep the board fixed size, just resize the window surface
-        self.screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
-        # Optionally, you could redraw the board here if needed
+        """Handle window resize while keeping board centered"""
+        self.window_width = max(MIN_WINDOW_WIDTH, event.w)
+        self.window_height = max(MIN_WINDOW_HEIGHT, event.h)
+        self.screen = pygame.display.set_mode((self.window_width, self.window_height), pygame.RESIZABLE)
         
-    def draw_glowing_circle(self, surface, center, radius, color, glow_color):
+        # Recalculate board position
+        self.board_x = (self.window_width - BOARD_WIDTH) // 2
+        self.board_y = (self.window_height - BOARD_HEIGHT - UI_HEIGHT) // 2 + 40
+        
+        # Regenerate stars for new window size
+        self.stars = [(pygame.math.Vector2(random.randint(0, self.window_width), 
+                                         random.randint(0, self.window_height)), 
+                      random.uniform(0.5, 2.0)) for _ in range(50)]
+
+    def _draw_animated_background(self):
+        """Draw animated starfield background"""
+        # Gradient background
+        for y in range(self.window_height):
+            ratio = y / self.window_height
+            r = int(COLORS['background_gradient_top'][0] * (1 - ratio) + COLORS['background_gradient_bottom'][0] * ratio)
+            g = int(COLORS['background_gradient_top'][1] * (1 - ratio) + COLORS['background_gradient_bottom'][1] * ratio)
+            b = int(COLORS['background_gradient_top'][2] * (1 - ratio) + COLORS['background_gradient_bottom'][2] * ratio)
+            pygame.draw.line(self.screen, (r, g, b), (0, y), (self.window_width, y))
+        
+        # Animated stars
+        for i, (star_pos, speed) in enumerate(self.stars):
+            # Move stars
+            star_pos.x += speed * 0.5
+            if star_pos.x > self.window_width:
+                star_pos.x = -5
+            
+            # Twinkling effect
+            brightness = int(255 * (0.5 + 0.5 * math.sin(self.animation_time * 3 + i * 0.5)))
+            size = int(2 + math.sin(self.animation_time * 2 + i * 0.3))
+            
+            pygame.draw.circle(self.screen, (brightness, brightness, brightness), 
+                             (int(star_pos.x), int(star_pos.y)), size)
+
+    def _draw_title_bar(self):
+        """Draw animated title bar"""
+        title_y = 10
+        
+        # Title background with glow
+        title_bg = pygame.Surface((self.window_width, 60), pygame.SRCALPHA)
+        pygame.draw.rect(title_bg, (*COLORS['ui_bg'], 120), (0, 0, self.window_width, 60))
+        self.screen.blit(title_bg, (0, title_y - 10))
+        
+        # Animated title text
+        pulse = math.sin(self.animation_time * 2) * 0.1 + 0.9
+        
+        # Main title
+        title_text = "🎮 WUMPUS WORLD"
+        title_surface = self.font_title.render(title_text, True, COLORS['title_primary'])
+        title_rect = title_surface.get_rect(center=(self.window_width // 2, title_y + 15))
+        
+        # Glow effect
+        glow_surface = self.font_title.render(title_text, True, COLORS['title_glow'])
+        for offset in [(2, 2), (-2, -2), (2, -2), (-2, 2)]:
+            glow_rect = glow_surface.get_rect(center=(title_rect.centerx + offset[0], title_rect.centery + offset[1]))
+            glow_surface.set_alpha(int(50 * pulse))
+            self.screen.blit(glow_surface, glow_rect)
+        
+        self.screen.blit(title_surface, title_rect)
+        
+        # Subtitle
+        subtitle_text = "AI Agent Adventure"
+        subtitle_surface = self.font_medium.render(subtitle_text, True, COLORS['title_secondary'])
+        subtitle_rect = subtitle_surface.get_rect(center=(self.window_width // 2, title_y + 40))
+        self.screen.blit(subtitle_surface, subtitle_rect)
+
+    def _draw_enhanced_tile(self, x: int, y: int, tile_type: str) -> None:
+        """Draw individual tile with enhanced graphics and animations"""
+        pixel_x = self.board_x + x * TILE_SIZE
+        pixel_y = self.board_y + y * TILE_SIZE
+        center = (pixel_x + TILE_SIZE // 2, pixel_y + TILE_SIZE // 2)
+        
+        # Tile background with subtle animation
+        tile_rect = pygame.Rect(pixel_x, pixel_y, TILE_SIZE, TILE_SIZE)
+        
+        # Add subtle hover-like effect
+        hover_intensity = 0.5 + 0.5 * math.sin(self.animation_time * 1.5 + x * 0.3 + y * 0.5)
+        base_color = COLORS['tile_empty']
+        highlight_color = COLORS['tile_highlight']
+        
+        # Interpolate colors
+        r = int(base_color[0] + (highlight_color[0] - base_color[0]) * hover_intensity * 0.1)
+        g = int(base_color[1] + (highlight_color[1] - base_color[1]) * hover_intensity * 0.1)
+        b = int(base_color[2] + (highlight_color[2] - base_color[2]) * hover_intensity * 0.1)
+        
+        pygame.draw.rect(self.screen, (r, g, b), tile_rect)
+        pygame.draw.rect(self.screen, COLORS['tile_border'], tile_rect, 2)
+        
+        # Draw contents with image overlay if available
+        if tile_type == 'A':
+            self._draw_agent_enhanced(center)
+        elif tile_type == 'W':
+            self._draw_wumpus_enhanced(center)
+        elif tile_type == 'B':
+            self.draw_breeze(center)
+        elif tile_type == 'S':
+            self.draw_stench(center)
+        elif tile_type == 'G':
+            self._draw_gold_enhanced(center)
+        elif tile_type == 'P':
+            self.draw_pit(center)
+        elif tile_type == '.':
+            self.draw_trail(center)
+
+    def _draw_agent_enhanced(self, center):
+        """Enhanced agent drawing with image overlay"""
+        self.draw_particle_trail(center, COLORS['player'])
+        self.draw_glowing_circle(center, 18, COLORS['player'], COLORS['player_glow'])
+        
+        # Overlay image if available
+        if 'player' in self.images:
+            img = pygame.transform.scale(self.images['player'], (32, 32))
+            img_rect = img.get_rect(center=center)
+            self.screen.blit(img, img_rect)
+        else:
+            # Default drawing
+            eye_pos = (center[0] + 5, center[1] - 5)
+            pygame.draw.circle(self.screen, (255, 255, 255), eye_pos, 3)
+
+    def _draw_wumpus_enhanced(self, center):
+        """Enhanced Wumpus drawing with image overlay"""
+        self.draw_pulsing_effect(center, 25, COLORS['wumpus_glow'])
+        
+        if 'wumpus' in self.images:
+            # Scale and apply pulsing effect to image
+            pulse = math.sin(self.animation_time * 3) * 0.1 + 0.9
+            size = int(40 * pulse)
+            img = pygame.transform.scale(self.images['wumpus'], (size, size))
+            img_rect = img.get_rect(center=center)
+            self.screen.blit(img, img_rect)
+        else:
+            # Default drawing
+            self.draw_glowing_circle(center, 20, COLORS['wumpus'], COLORS['wumpus_glow'])
+            eye1_pos = (center[0] - 6, center[1] - 8)
+            eye2_pos = (center[0] + 6, center[1] - 8)
+            pygame.draw.circle(self.screen, (255, 0, 0), eye1_pos, 3)
+            pygame.draw.circle(self.screen, (255, 0, 0), eye2_pos, 3)
+
+    def _draw_gold_enhanced(self, center):
+        """Enhanced gold drawing with image overlay"""
+        self.draw_pulsing_effect(center, 22, COLORS['gold_glow'])
+        
+        if 'gold' in self.images:
+            # Rotating gold with sparkle effect
+            angle = self.animation_time * 2
+            img = pygame.transform.scale(self.images['gold'], (30, 30))
+            rotated_img = pygame.transform.rotate(img, math.degrees(angle))
+            img_rect = rotated_img.get_rect(center=center)
+            self.screen.blit(rotated_img, img_rect)
+        else:
+            # Default diamond drawing
+            diamond_points = [
+                (center[0], center[1] - 15),
+                (center[0] + 12, center[1]),
+                (center[0], center[1] + 15),
+                (center[0] - 12, center[1])
+            ]
+            pygame.draw.polygon(self.screen, COLORS['gold'], diamond_points)
+            pygame.draw.polygon(self.screen, COLORS['gold_glow'], diamond_points, 2)
+        
+        # Sparkle effect
+        for i in range(4):
+            sparkle_x = center[0] + math.sin(self.animation_time * 4 + i * 1.5) * 25
+            sparkle_y = center[1] + math.cos(self.animation_time * 4 + i * 1.5) * 25
+            pygame.draw.circle(self.screen, (255, 255, 255), (int(sparkle_x), int(sparkle_y)), 2)
+
+    def _draw_enhanced_ui(self, agent: Agent, status: str) -> None:
+        """Enhanced UI with better styling"""
+        ui_y = self.board_y + BOARD_HEIGHT + 20
+        ui_width = BOARD_WIDTH
+        ui_x = self.board_x
+        
+        # UI background with rounded corners effect
+        ui_bg = pygame.Surface((ui_width, UI_HEIGHT - 20), pygame.SRCALPHA)
+        pygame.draw.rect(ui_bg, COLORS['ui_bg'], (0, 0, ui_width, UI_HEIGHT - 20))
+        pygame.draw.rect(ui_bg, COLORS['ui_border'], (0, 0, ui_width, UI_HEIGHT - 20), 2)
+        self.screen.blit(ui_bg, (ui_x, ui_y))
+        
+        # Status with color coding
+        status_color = COLORS['ui_text_highlight']
+        if status == "Dead":
+            status_color = COLORS['dead']
+        elif status == "Victory":
+            status_color = COLORS['victory']
+        
+        status_surf = self.font_large.render(f"Status: {status}", True, status_color)
+        self.screen.blit(status_surf, (ui_x + 20, ui_y + 10))
+        
+        # Info panels
+        info_items = [
+            ("Position", f"{agent.position}", COLORS['ui_text']),
+            ("Arrows", f"{agent.arrow_count}", COLORS['arrow']),
+            ("Gold", f"{agent.gold_count}", COLORS['gold']),
+            ("Score", f"{agent.score}", COLORS['ui_text_highlight'])
+        ]
+        
+        panel_width = (ui_width - 60) // 4
+        for i, (label, value, color) in enumerate(info_items):
+            panel_x = ui_x + 20 + i * (panel_width + 10)
+            panel_y = ui_y + 50
+            
+            # Mini panel background
+            panel_bg = pygame.Surface((panel_width, 40), pygame.SRCALPHA)
+            pygame.draw.rect(panel_bg, (*COLORS['tile_empty'], 180), (0, 0, panel_width, 40))
+            self.screen.blit(panel_bg, (panel_x, panel_y))
+            
+            # Label
+            label_surf = self.font_small.render(label, True, COLORS['ui_text'])
+            label_rect = label_surf.get_rect(center=(panel_x + panel_width // 2, panel_y + 12))
+            self.screen.blit(label_surf, label_rect)
+            
+            # Value
+            value_surf = self.font_medium.render(value, True, color)
+            value_rect = value_surf.get_rect(center=(panel_x + panel_width // 2, panel_y + 28))
+            self.screen.blit(value_surf, value_rect)
+
+    # ... (keeping all the existing drawing methods for breeze, stench, pit, etc.)
+    
+    def draw_glowing_circle(self, center, radius, color, glow_color):
         """Draw a circle with a glowing effect"""
-        # Draw multiple circles with decreasing alpha for glow effect
         for i in range(5):
             alpha = 50 - i * 10
             if alpha > 0:
                 glow_surf = pygame.Surface((radius * 4, radius * 4), pygame.SRCALPHA)
                 pygame.draw.circle(glow_surf, (*glow_color, alpha), (radius * 2, radius * 2), radius + i * 3)
-                surface.blit(glow_surf, (center[0] - radius * 2, center[1] - radius * 2))
+                self.screen.blit(glow_surf, (center[0] - radius * 2, center[1] - radius * 2))
         
-        # Draw main circle
-        pygame.draw.circle(surface, color, center, radius)
+        pygame.draw.circle(self.screen, color, center, radius)
 
-    def draw_pulsing_effect(self, surface, center, base_radius, color, time_offset=0):
+    def draw_pulsing_effect(self, center, base_radius, color, time_offset=0):
         """Draw a pulsing effect"""
         pulse = math.sin(self.animation_time * 3 + time_offset) * 0.3 + 0.7
         radius = int(base_radius * pulse)
@@ -80,9 +320,9 @@ class WumpusGraphics:
         if alpha > 0:
             pulse_surf = pygame.Surface((radius * 4, radius * 4), pygame.SRCALPHA)
             pygame.draw.circle(pulse_surf, (*color, alpha), (radius * 2, radius * 2), radius)
-            surface.blit(pulse_surf, (center[0] - radius * 2, center[1] - radius * 2))
+            self.screen.blit(pulse_surf, (center[0] - radius * 2, center[1] - radius * 2))
 
-    def draw_particle_trail(self, surface, center, color):
+    def draw_particle_trail(self, center, color):
         """Draw trailing particles"""
         for i in range(8):
             offset_x = math.sin(self.animation_time * 2 + i * 0.8) * 15
@@ -92,475 +332,252 @@ class WumpusGraphics:
             if alpha > 0:
                 particle_surf = pygame.Surface((6, 6), pygame.SRCALPHA)
                 pygame.draw.circle(particle_surf, (*color, alpha), (3, 3), 3)
-                surface.blit(particle_surf, (center[0] + offset_x - 3, center[1] + offset_y - 3))
+                self.screen.blit(particle_surf, (center[0] + offset_x - 3, center[1] + offset_y - 3))
 
-    def draw_pit(self, surface, center):
+    def draw_pit(self, center):
         """Draw a pit with dark swirling effect"""
-        # Draw dark center
-        pygame.draw.circle(surface, COLORS['pit'], center, 15)
+        pygame.draw.circle(self.screen, COLORS['pit'], center, 15)
         
-        # Draw swirling effect
         for i in range(3):
             angle = self.animation_time * 2 + i * 2.1
             radius = 8 + i * 3
             swirl_x = center[0] + math.cos(angle) * radius
             swirl_y = center[1] + math.sin(angle) * radius
-            pygame.draw.circle(surface, COLORS['pit_glow'], (int(swirl_x), int(swirl_y)), 3)
+            pygame.draw.circle(self.screen, COLORS['pit_glow'], (int(swirl_x), int(swirl_y)), 3)
 
-    def draw_breeze(self, surface, center):
-        """Draw breeze effect (indicates nearby pit) with wind symbol"""
-        # Draw wind swirls
+    def draw_breeze(self, center):
+        """Draw breeze effect"""
         for i in range(3):
             angle = self.animation_time * 2 + i * 2.1
             radius = 15 + i * 5
             start_angle = angle
             end_angle = angle + 1.5
             
-            # Calculate arc points
-            start_x = center[0] + math.cos(start_angle) * radius
-            start_y = center[1] + math.sin(start_angle) * radius
-            end_x = center[0] + math.cos(end_angle) * radius
-            end_y = center[1] + math.sin(end_angle) * radius
-            
-            # Draw curved lines to represent wind
-            pygame.draw.arc(surface, COLORS['breeze'], 
+            pygame.draw.arc(self.screen, COLORS['breeze'], 
                           (center[0] - radius, center[1] - radius, radius * 2, radius * 2),
                           start_angle, end_angle, 3)
         
-        # Add flowing particles
         for i in range(6):
             particle_angle = self.animation_time * 3 + i * 1.0
             particle_radius = 20 + math.sin(self.animation_time * 4 + i) * 5
             px = center[0] + math.cos(particle_angle) * particle_radius
             py = center[1] + math.sin(particle_angle) * particle_radius
-            pygame.draw.circle(surface, COLORS['breeze'], (int(px), int(py)), 2)
+            pygame.draw.circle(self.screen, COLORS['breeze'], (int(px), int(py)), 2)
         
-        # Add "B" text indicator
         font = pygame.font.Font(None, 24)
         text = font.render("B", True, COLORS['breeze'])
         text_rect = text.get_rect(center=(center[0], center[1] + 25))
-        surface.blit(text, text_rect)
+        self.screen.blit(text, text_rect)
 
-    def draw_stench(self, surface, center):
-        """Draw stench effect (indicates nearby Wumpus) with stink lines"""
-        # Draw stench waves
+    def draw_stench(self, center):
+        """Draw stench effect"""
         for i in range(4):
             wave_offset = math.sin(self.animation_time * 4 + i * 0.5) * 3
             y_pos = center[1] - 20 + i * 10 + wave_offset
             
-            # Draw wavy stench lines
             points = []
             for x_offset in range(-20, 21, 4):
                 wave_y = y_pos + math.sin((x_offset + self.animation_time * 50) * 0.3) * 2
                 points.append((center[0] + x_offset, wave_y))
             
             if len(points) > 1:
-                pygame.draw.lines(surface, COLORS['stench'], False, points, 2)
+                pygame.draw.lines(self.screen, COLORS['stench'], False, points, 2)
         
-        # Add skull-like indicator for danger
         skull_center = (center[0], center[1] - 5)
-        pygame.draw.circle(surface, COLORS['stench'], skull_center, 8)
+        pygame.draw.circle(self.screen, COLORS['stench'], skull_center, 8)
         
-        # Eyes
-        pygame.draw.circle(surface, (0, 0, 0), (skull_center[0] - 3, skull_center[1] - 2), 2)
-        pygame.draw.circle(surface, (0, 0, 0), (skull_center[0] + 3, skull_center[1] - 2), 2)
+        pygame.draw.circle(self.screen, (0, 0, 0), (skull_center[0] - 3, skull_center[1] - 2), 2)
+        pygame.draw.circle(self.screen, (0, 0, 0), (skull_center[0] + 3, skull_center[1] - 2), 2)
         
-        # Add "S" text indicator
         font = pygame.font.Font(None, 24)
         text = font.render("S", True, COLORS['stench'])
         text_rect = text.get_rect(center=(center[0], center[1] + 25))
-        surface.blit(text, text_rect)
+        self.screen.blit(text, text_rect)
 
-    def animate_moving_arrow(self, start):
-        pass
-
-    def draw_wumpus(self, surface, center):
-        self.draw_pulsing_effect(surface, center, 25, COLORS['wumpus_glow'])
-        self.draw_glowing_circle(surface, center, 20, COLORS['wumpus'], COLORS['wumpus_glow'])
+    def draw_trail(self, center):
+        """Draw a subtle dot to mark visited tiles"""
+        pygame.draw.circle(self.screen, COLORS['trail'], center, 4)
+        pygame.draw.circle(self.screen, COLORS['trail_glow'], center, 8, 2)
         
-        # Add menacing eyes
-        eye1_pos = (center[0] - 6, center[1] - 8)
-        eye2_pos = (center[0] + 6, center[1] - 8)
-        pygame.draw.circle(surface, (255, 0, 0), eye1_pos, 3)
-        pygame.draw.circle(surface, (255, 0, 0), eye2_pos, 3)
-
-    def draw_agent(self, surface, center):
-        self.draw_particle_trail(surface, center, COLORS['player'])
-        self.draw_glowing_circle(surface, center, 18, COLORS['player'], COLORS['player_glow'])
-        
-        # Add player "eye" or direction indicator
-        eye_pos = (center[0] + 5, center[1] - 5)
-        pygame.draw.circle(surface, (255, 255, 255), eye_pos, 3)
-
-    def draw_gold(self, surface, center):
-        self.draw_pulsing_effect(surface, center, 22, COLORS['gold_glow'])
-        # Draw diamond shape for gold
-        diamond_points = [
-            (center[0], center[1] - 15),
-            (center[0] + 12, center[1]),
-            (center[0], center[1] + 15),
-            (center[0] - 12, center[1])
-        ]
-        pygame.draw.polygon(surface, COLORS['gold'], diamond_points)
-        pygame.draw.polygon(surface, COLORS['gold_glow'], diamond_points, 2)
-        
-        # Add sparkle effect
-        for i in range(4):
-            sparkle_x = center[0] + math.sin(self.animation_time * 4 + i * 1.5) * 20
-            sparkle_y = center[1] + math.cos(self.animation_time * 4 + i * 1.5) * 20
-            pygame.draw.circle(surface, (255, 255, 255), (int(sparkle_x), int(sparkle_y)), 2)
-
-    def draw_trail(self, surface, center):
-        # Draw a subtle dot to mark visited tiles
-        pygame.draw.circle(surface, COLORS['trail'], center, 4)
-        
-        # Add a subtle glow effect around the dot
-        pygame.draw.circle(surface, COLORS['trail_glow'], center, 8, 2)
-        
-        # Optional: Add a pulsing effect to make it more visible
         pulse_radius = 6 + int(2 * math.sin(self.animation_time * 3))
-        pygame.draw.circle(surface, COLORS['trail'], center, pulse_radius, 1)
-
-    def _draw_ui(self, agent: Agent, status: str) -> None:
-        ui_y = ROWS * TILE_SIZE
-        pygame.draw.rect(self.screen, COLORS['ui_bg'], (0, ui_y, WIDTH, 100))
-
-        status_surf = self.font_large.render(f"Status: {status}", True, COLORS['ui_text'])
-        self.screen.blit(status_surf, (10, ui_y + 10))
-
-        info_lines = [
-            f"Position: {agent.position}",
-            f"Arrows: {agent.arrow_count}",
-            f"Gold: {agent.gold_count}",
-            f"Score: {agent.score}"
-        ]
-
-        for i, line in enumerate(info_lines):
-            text = self.font_medium.render(line, True, COLORS['ui_text'])
-            self.screen.blit(text, (10, ui_y + 40 + i * 20))
-
-    def animate_death(self):
-        """Display a sad animation after death"""
-        # Create a dark overlay
-        overlay = pygame.Surface((WIDTH, HEIGHT))
-        overlay.set_alpha(150)
-        overlay.fill((0, 0, 0))
-        
-        # Animation loop
-        for frame in range(60):
-            self.screen.blit(overlay, (0, 0))
-            
-            # Pulsing red effect
-            alpha = int(100 + 50 * math.sin(frame * 0.3))
-            red_surf = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-            red_surf.fill((255, 0, 0, alpha))
-            self.screen.blit(red_surf, (0, 0))
-            
-            # Death message
-            death_text = self.font_large.render("YOU DIED", True, (255, 255, 255))
-            text_rect = death_text.get_rect(center=(WIDTH//2, HEIGHT//2))
-            self.screen.blit(death_text, text_rect)
-            
-            # Sad face
-            face_center = (WIDTH//2, HEIGHT//2 + 60)
-            pygame.draw.circle(self.screen, (255, 255, 255), face_center, 30, 3)
-            # Eyes
-            pygame.draw.circle(self.screen, (255, 255, 255), (face_center[0] - 10, face_center[1] - 10), 3)
-            pygame.draw.circle(self.screen, (255, 255, 255), (face_center[0] + 10, face_center[1] - 10), 3)
-            # Sad mouth
-            pygame.draw.arc(self.screen, (255, 255, 255), 
-                        (face_center[0] - 15, face_center[1] + 5, 30, 20), 
-                        0, math.pi, 3)
-            
-            pygame.display.flip()
-            time.sleep(0.05)
-
-    def animate_victory(self):
-        """Display a happy animation after winning"""
-        # Create a bright overlay
-        overlay = pygame.Surface((WIDTH, HEIGHT))
-        overlay.set_alpha(100)
-        overlay.fill((255, 255, 255))
-        
-        # Animation loop
-        for frame in range(90):
-            self.screen.blit(overlay, (0, 0))
-            
-            # Golden sparkles
-            for i in range(20):
-                sparkle_x = (frame * 3 + i * 30) % WIDTH
-                sparkle_y = 50 + 30 * math.sin(frame * 0.1 + i)
-                pygame.draw.circle(self.screen, (255, 215, 0), (int(sparkle_x), int(sparkle_y)), 3)
-            
-            # Victory message
-            victory_text = self.font_large.render("VICTORY!", True, (50, 255, 50))
-            text_rect = victory_text.get_rect(center=(WIDTH//2, HEIGHT//2))
-            self.screen.blit(victory_text, text_rect)
-            
-            # Happy face
-            face_center = (WIDTH//2, HEIGHT//2 + 60)
-            pygame.draw.circle(self.screen, (255, 255, 255), face_center, 30, 3)
-            # Eyes
-            pygame.draw.circle(self.screen, (255, 255, 255), (face_center[0] - 10, face_center[1] - 10), 3)
-            pygame.draw.circle(self.screen, (255, 255, 255), (face_center[0] + 10, face_center[1] - 10), 3)
-            # Happy mouth
-            pygame.draw.arc(self.screen, (255, 255, 255), 
-                        (face_center[0] - 15, face_center[1] + 5, 30, 15), 
-                        math.pi, 2 * math.pi, 3)
-            
-            pygame.display.flip()
-            time.sleep(0.03)
-
+        pygame.draw.circle(self.screen, COLORS['trail'], center, pulse_radius, 1)
 
     def _load_images(self) -> Dict[str, pygame.Surface]:
-        """Load graphical assets if available"""
+        """Load graphical assets if available and resize to cell size"""
         images = {}
         try:
             asset_path = Path("assets")
             if asset_path.exists():
-                images['gold'] = pygame.image.load(asset_path / "gold.png").convert_alpha()
-                images['wumpus'] = pygame.image.load(asset_path / "wumpus.png").convert_alpha()
+                cell_size = TILE_SIZE
+                gold_img = pygame.image.load(asset_path / "gold.png").convert_alpha()
+                images['gold'] = pygame.transform.smoothscale(gold_img, (cell_size, cell_size))
+                wumpus_img = pygame.image.load(asset_path / "wumpus.png").convert_alpha()
+                images['wumpus'] = pygame.transform.smoothscale(wumpus_img, (cell_size, cell_size))
         except:
             print("Could not load images, using default rendering")
         return images
 
     def draw_board(self, board: List[List[str]], agent: Agent, status: str = "Exploring") -> None:
-        self.screen.fill(COLORS['background'])
+        """Main drawing method with enhanced graphics"""
         self.animation_time = time.time()
-
+        
+        # Draw animated background
+        self._draw_animated_background()
+        
+        # Draw title bar
+        self._draw_title_bar()
+        
+        # Draw board border with glow effect
+        board_border = pygame.Rect(self.board_x - 5, self.board_y - 5, BOARD_WIDTH + 10, BOARD_HEIGHT + 10)
+        pygame.draw.rect(self.screen, COLORS['ui_border'], board_border, 3)
+        
+        # Draw grid lines
         for x in range(COLS + 1):
-            pygame.draw.line(self.screen, COLORS['tile_border'], (x * TILE_SIZE, 0), (x * TILE_SIZE, ROWS * TILE_SIZE))
+            line_x = self.board_x + x * TILE_SIZE
+            pygame.draw.line(self.screen, COLORS['tile_border'], 
+                           (line_x, self.board_y), (line_x, self.board_y + BOARD_HEIGHT))
         for y in range(ROWS + 1):
-            pygame.draw.line(self.screen, COLORS['tile_border'], (0, y * TILE_SIZE), (COLS * TILE_SIZE, y * TILE_SIZE))
-
+            line_y = self.board_y + y * TILE_SIZE
+            pygame.draw.line(self.screen, COLORS['tile_border'], 
+                           (self.board_x, line_y), (self.board_x + BOARD_WIDTH, line_y))
+        
+        # Draw tiles
         for y in range(ROWS):
             for x in range(COLS):
-                self._draw_tile(x, y, board[y][x])
-
-        self._draw_ui(agent, status)
+                self._draw_enhanced_tile(x, y, board[y][x])
+        
+        # Draw enhanced UI
+        self._draw_enhanced_ui(agent, status)
+        
         pygame.display.flip()
         self.clock.tick(60)
 
-    def _draw_tile(self, x: int, y: int, tile_type: str) -> None:
-        """Draw individual tile with animations"""
-        pixel_x = x * TILE_SIZE
-        pixel_y = y * TILE_SIZE
-        center = (pixel_x + TILE_SIZE // 2, pixel_y + TILE_SIZE // 2)
+    def animate_death(self):
+        """Enhanced death animation"""
+        overlay = pygame.Surface((self.window_width, self.window_height))
+        overlay.set_alpha(150)
+        overlay.fill((0, 0, 0))
         
-        # Tile background
-        tile_rect = pygame.Rect(pixel_x, pixel_y, TILE_SIZE, TILE_SIZE)
-        pygame.draw.rect(self.screen, COLORS['tile_empty'], tile_rect)
-        
-        # Draw contents
-        if tile_type == 'A':
-            self.draw_agent(self.screen, center)
-        elif tile_type == 'W':
-            self.draw_wumpus(self.screen, center)
-        elif tile_type == 'B':
-            self.draw_breeze(self.screen, center)
-        elif tile_type == 'S':
-            self.draw_stench(self.screen, center)
-        elif tile_type == 'G':
-            self.draw_gold(self.screen, center)
-        elif tile_type == 'P':
-            self.draw_pit(self.screen, center)
-        elif tile_type == '.':
-            self.draw_trail(self.screen ,center)
+        for frame in range(60):
+            self.screen.blit(overlay, (0, 0))
+            
+            alpha = int(100 + 50 * math.sin(frame * 0.3))
+            red_surf = pygame.Surface((self.window_width, self.window_height), pygame.SRCALPHA)
+            red_surf.fill((255, 0, 0, alpha))
+            self.screen.blit(red_surf, (0, 0))
+            
+            death_text = self.font_title.render("💀 GAME OVER 💀", True, (255, 255, 255))
+            text_rect = death_text.get_rect(center=(self.window_width//2, self.window_height//2))
+            self.screen.blit(death_text, text_rect)
+            
+            pygame.display.flip()
+            time.sleep(0.05)
 
-    def close(self) -> None:
-        """Clean up resources"""
-        pygame.quit()
-# ---------------- below is a monstrocity ----------------------#
+    def animate_victory(self):
+        """Enhanced victory animation"""
+        overlay = pygame.Surface((self.window_width, self.window_height))
+        overlay.set_alpha(100)
+        overlay.fill((255, 255, 255))
+        
+        for frame in range(90):
+            self.screen.blit(overlay, (0, 0))
+            
+            for i in range(20):
+                sparkle_x = (frame * 3 + i * 30) % self.window_width
+                sparkle_y = 50 + 30 * math.sin(frame * 0.1 + i)
+                pygame.draw.circle(self.screen, (255, 215, 0), (int(sparkle_x), int(sparkle_y)), 3)
+            
+            victory_text = self.font_title.render("🏆 VICTORY! 🏆", True, (50, 255, 50))
+            text_rect = victory_text.get_rect(center=(self.window_width//2, self.window_height//2))
+            self.screen.blit(victory_text, text_rect)
+            
+            pygame.display.flip()
+            time.sleep(0.03)
+
     def display_options(self):
-        """Display a beautiful animated options menu with hover effects"""
-        """Main structure was generated by chatgpt, designed by claud. debugged by ZahinRakin"""
-        import math
+        """Enhanced options menu"""
+        overlay = pygame.Surface((self.window_width, self.window_height))
+        overlay.set_alpha(200)
+        overlay.fill((20, 20, 30))
+        self.screen.blit(overlay, (0, 0))
         
-        # Animation variables
-        animation_time = 0
-        hover_index = -1
-        fade_in_duration = 0.3
+        panel_width = 400
+        panel_height = 280
+        panel_x = (self.window_width - panel_width) // 2
+        panel_y = (self.window_height - panel_height) // 2
         
-        # Create glassmorphism overlay
-        overlay = pygame.Surface((WIDTH, HEIGHT))
-        overlay.set_alpha(180)
-        overlay.fill((15, 15, 30))  # Dark blue-black
+        # Enhanced panel with gradient
+        panel_surface = pygame.Surface((panel_width, panel_height))
+        for y in range(panel_height):
+            ratio = y / panel_height
+            r = int(45 * (1 - ratio) + 35 * ratio)
+            g = int(50 * (1 - ratio) + 40 * ratio)
+            b = int(65 * (1 - ratio) + 55 * ratio)
+            pygame.draw.line(panel_surface, (r, g, b), (0, y), (panel_width, y))
         
-        # Add subtle gradient effect
-        for y in range(HEIGHT):
-            alpha = int(50 * (1 - y / HEIGHT))
-            color = (20 + alpha//3, 25 + alpha//4, 40 + alpha//2)
-            pygame.draw.line(overlay, color, (0, y), (WIDTH, y))
+        self.screen.blit(panel_surface, (panel_x, panel_y))
+        pygame.draw.rect(self.screen, COLORS['ui_border'], (panel_x, panel_y, panel_width, panel_height), 3)
         
-        # Menu panel dimensions and styling
-        panel_width = min(400, WIDTH * 0.6)
-        panel_height = min(350, HEIGHT * 0.7)
-        panel_x = (WIDTH - panel_width) // 2
-        panel_y = (HEIGHT - panel_height) // 2
+        # Title with glow
+        title_text = self.font_large.render("OPTIONS", True, COLORS['title_primary'])
+        title_rect = title_text.get_rect(center=(self.window_width//2, panel_y + 50))
+        self.screen.blit(title_text, title_rect)
         
-        # Menu options with icons (using Unicode symbols)
         options = [
-            ("Restart Game", "restart", (100, 200, 255)),
-            ("Take Snapshot", "snapshot", (255, 180, 50)),
-            ("Quit Game", "quit", (255, 100, 100))
+            ("Restart Game", "restart"),
+            ("Take Snapshot", "snapshot"),
+            ("Quit Game", "quit")
         ]
         
         option_rects = []
-        clock = pygame.time.Clock()
+        mouse_pos = pygame.mouse.get_pos()
         
-        while True:
-            dt = clock.tick(60) / 1000.0  # Delta time in seconds
-            animation_time += dt
+        for i, (option_text, action) in enumerate(options):
+            option_y = panel_y + 110 + i * 50
+            option_rect = pygame.Rect(panel_x + 30, option_y - 20, panel_width - 60, 40)
+            option_rects.append(option_rect)
             
-            # Handle events
-            mouse_pos = pygame.mouse.get_pos()
+            is_hovered = option_rect.collidepoint(mouse_pos)
+            
+            if is_hovered:
+                hover_surface = pygame.Surface((option_rect.width, option_rect.height))
+                hover_surface.fill((70, 85, 110))
+                self.screen.blit(hover_surface, option_rect)
+                
+                # Add glow effect for hovered option
+                glow_surface = pygame.Surface((option_rect.width + 10, option_rect.height + 10), pygame.SRCALPHA)
+                pygame.draw.rect(glow_surface, (*COLORS['title_glow'], 50), (0, 0, option_rect.width + 10, option_rect.height + 10))
+                self.screen.blit(glow_surface, (option_rect.x - 5, option_rect.y - 5))
+            
+            # Draw option text with enhanced styling
+            text_color = COLORS['title_primary'] if is_hovered else COLORS['ui_text']
+            option_surface = self.font_medium.render(option_text, True, text_color)
+            text_rect = option_surface.get_rect(center=option_rect.center)
+            self.screen.blit(option_surface, text_rect)
+        
+        pygame.display.flip()
+        
+        # Handle events
+        while True:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     return "quit"
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_ESCAPE:
-                        return "close"
+                elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    return "close"
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    mouse_pos = event.pos
                     for i, rect in enumerate(option_rects):
                         if rect.collidepoint(mouse_pos):
                             action = options[i][1]
                             if action == "snapshot":
-                                # Flash effect for snapshot
-                                flash_surface = pygame.Surface((WIDTH, HEIGHT))
-                                flash_surface.fill((255, 255, 255))
-                                flash_surface.set_alpha(100)
-                                self.screen.blit(flash_surface, (0, 0))
-                                pygame.display.flip()
-                                pygame.time.wait(100)
-                                
                                 pygame.image.save(self.screen, f"wumpus_snapshot_{int(time.time())}.png")
-                                continue  # Stay in menu
+                                return "close"
                             return action
-            
-            # Clear screen and draw background
-            self.screen.blit(overlay, (0, 0))
-            
-            # Calculate fade-in effect
-            fade_alpha = min(255, int(255 * (animation_time / fade_in_duration)))
-            
-            # Draw glassmorphism panel with rounded corners effect
-            panel_surface = pygame.Surface((panel_width, panel_height))
-            panel_surface.set_alpha(fade_alpha)
-            
-            # Create gradient background for panel
-            for y in range(panel_height):
-                progress = y / panel_height
-                color_r = int(40 + 20 * progress)
-                color_g = int(45 + 25 * progress)
-                color_b = int(70 + 30 * progress)
-                pygame.draw.line(panel_surface, (color_r, color_g, color_b), (0, y), (panel_width, y))
-            
-            # Draw panel border with glow effect
-            border_color = (100, 150, 255)
-            for thickness in range(5, 0, -1):
-                alpha = int(fade_alpha * (thickness / 5) * 0.5)
-                border_surface = pygame.Surface((panel_width + thickness*2, panel_height + thickness*2))
-                border_surface.set_alpha(alpha)
-                border_surface.fill(border_color)
-                self.screen.blit(border_surface, (panel_x - thickness, panel_y - thickness))
-            
-            self.screen.blit(panel_surface, (panel_x, panel_y))
-            
-            # Draw animated title
-            title_offset = int(10 * math.sin(animation_time * 2))
-            title_text = self.font_large.render("OPTIONS", True, (255, 255, 255))
-            title_rect = title_text.get_rect(center=(WIDTH//2, panel_y + 50 + title_offset))
-            
-            # Title glow effect
-            glow_surface = pygame.Surface(title_text.get_size())
-            glow_surface.fill((100, 150, 255))
-            glow_surface.set_alpha(int(fade_alpha * 0.3))
-            for offset in [(2, 2), (-2, 2), (2, -2), (-2, -2)]:
-                self.screen.blit(glow_surface, (title_rect.x + offset[0], title_rect.y + offset[1]))
-            
-            title_text.set_alpha(fade_alpha)
-            self.screen.blit(title_text, title_rect)
-            
-            # Draw options with hover effects
-            option_rects.clear()
-            base_y = panel_y + 120
-            
-            for i, (option_text, action, color) in enumerate(options):
-                # Calculate hover state
-                option_y = base_y + i * 55
-                option_rect = pygame.Rect(panel_x + 20, option_y - 20, panel_width - 40, 40)
-                option_rects.append(option_rect)
-                
-                is_hovered = option_rect.collidepoint(mouse_pos)
-                if is_hovered:
-                    hover_index = i
-                
-                # Animate option appearance
-                option_alpha = min(fade_alpha, int(255 * max(0, animation_time - i * 0.1)))
-                
-                # Draw hover background
-                if is_hovered:
-                    hover_intensity = 0.5 + 0.3 * math.sin(animation_time * 8)
-                    hover_surface = pygame.Surface((option_rect.width, option_rect.height))
-                    hover_surface.set_alpha(int(option_alpha * hover_intensity * 0.3))
-                    hover_surface.fill(color)
-                    self.screen.blit(hover_surface, option_rect)
-                    
-                    # Hover border
-                    pygame.draw.rect(self.screen, color, option_rect, 2)
-                
-                # Draw option text with color and scale effects
-                scale = 1.1 if is_hovered else 1.0
-                text_color = color if is_hovered else (200, 200, 200)
-                
-                # Create scaled text surface
-                if scale != 1.0:
-                    temp_font = pygame.font.Font(None, int(self.font_medium.get_height() * scale))
-                    option_surface = temp_font.render(option_text, True, text_color)
-                else:
-                    option_surface = self.font_medium.render(option_text, True, text_color)
-                
-                option_surface.set_alpha(option_alpha)
-                text_rect = option_surface.get_rect(center=option_rect.center)
-                
-                # Subtle glow effect instead of shadow
-                if is_hovered:
-                    glow_surface = self.font_medium.render(option_text, True, color)
-                    glow_surface.set_alpha(int(option_alpha * 0.3))
-                    for glow_offset in [(1, 1), (-1, 1), (1, -1), (-1, -1)]:
-                        self.screen.blit(glow_surface, (text_rect.x + glow_offset[0], text_rect.y + glow_offset[1]))
-                
-                self.screen.blit(option_surface, text_rect)
-                
-                # Animated selection indicator (dot effect)
-                if is_hovered:
-                    indicator_x = panel_x + panel_width - 30
-                    indicator_y = option_rect.centery
-                    indicator_size = 3 + 2 * math.sin(animation_time * 10)
-                    pygame.draw.circle(self.screen, color, (int(indicator_x), int(indicator_y)), int(indicator_size))
-            
-            # Draw subtle particles effect
-            if animation_time > 0.5:
-                for i in range(20):
-                    particle_x = panel_x + (i * 37) % panel_width
-                    particle_y = panel_y + ((i * 73 + int(animation_time * 50)) % panel_height)
-                    particle_alpha = int(30 * math.sin(animation_time * 3 + i))
-                    if particle_alpha > 0:
-                        particle_surface = pygame.Surface((2, 2))
-                        particle_surface.set_alpha(particle_alpha)
-                        particle_surface.fill((150, 200, 255))
-                        self.screen.blit(particle_surface, (particle_x, particle_y))
-            
-            # Instructions text
-            instruction_text = "ESC to close • Click to select"
-            instruction_surface = pygame.font.Font(None, 24).render(instruction_text, True, (150, 150, 150))
-            instruction_surface.set_alpha(int(fade_alpha * 0.7))
-            instruction_rect = instruction_surface.get_rect(center=(WIDTH//2, panel_y + panel_height - 30))
-            self.screen.blit(instruction_surface, instruction_rect)
-            
-            pygame.display.flip()
+                elif event.type == pygame.MOUSEMOTION:
+                    return self.display_options()
         
         return "close"
 
-
-
+    def close(self) -> None:
+        """Clean up resources"""
+        pygame.quit()
