@@ -24,7 +24,8 @@ class Agent:
         self.agent_config = agent_config
         self.position = agent_config.starting_position
         self.starting_position = agent_config.starting_position
-        self.visited_cells: Set[Tuple[int, int]] = {self.position}
+        self.visited_cells: Set[Tuple[int, int]] = {self.position} # this won't be needed. since i update the self.original_world in game.py. update it later
+        self.path: List[Tuple[int, int]] = []
         self.arrow_count = agent_config.arrow_count
         self.has_gold = False
         self.is_alive = True
@@ -58,8 +59,8 @@ class Agent:
             return (row + dr, col + dc)
         return None
 
-    def move(self, direction: str) -> Optional[Tuple[int, int]]:
-        new_position = self.get_next_position(direction)
+    def move(self, pos) -> Optional[Tuple[int, int]]:
+        new_position = pos
         if new_position:
             self.set_position(new_position)
             self.score -= self.agent_config.movement_cost
@@ -90,7 +91,7 @@ class Agent:
     def has_won(self) -> bool:
         return self.has_gold and self.is_at_starting_position()
 
-    def update_knowledge(self, percepts: List[str]) -> None:
+    def update_knowledge(self, percepts: str) -> None:
         self.knowledge_base.add_percept(self.position, percepts)
         self.knowledge_base.infer_from_logic()
         self.position_history.append(self.position)
@@ -100,7 +101,7 @@ class Agent:
         print(f"[KNOWLEDGE] Possible Pits: {self.knowledge_base.possible_pits}")
         print(f"[KNOWLEDGE] Safe locations: {self.knowledge_base.safe_locations}")
 
-    def decide_action(self, percepts: List[str]) -> Tuple[str, str]:
+    def decide_action(self, percepts: str) -> Tuple[str, str]:
         self.update_knowledge(percepts)
 
         print(f"[DECISION] At {self.position}, has_gold: {self.has_gold}")

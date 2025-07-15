@@ -80,3 +80,6 @@ KB_CONSTANTS: Dict[str, str] = {
     'possible_wumpus': 'W?',
     'possible_pit': 'P?'
 }
+
+# the below constant is actually in use in game.py
+percepts = [["" for _ in range(10)] for _ in range(10)]  # 10x10 grid for percepts

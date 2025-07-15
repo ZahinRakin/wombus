@@ -13,13 +13,8 @@ class KnowledgeBase:
                 p = PropositionalLogic.to_propositional((x, y), 'P')
                 self.prover.add_clause([f"¬{w}", f"¬{p}"])  # ¬W ∨ ¬P = can't be both
 
-        # There is only ONE Wumpus — so at most one Wumpus cell
-        wumpus_symbols = [PropositionalLogic.to_propositional((x, y), 'W') for x in range(10) for y in range(10)]
-        for i in range(len(wumpus_symbols)):
-            for j in range(i + 1, len(wumpus_symbols)):
-                self.prover.add_clause([f"¬{wumpus_symbols[i]}", f"¬{wumpus_symbols[j]}"])  # ¬W_i ∨ ¬W_j
 
-        self.safe_locations: Set[Tuple[int, int]] = set()
+        # self.safe_locations: Set[Tuple[int, int]] = set()
         
         # Possible hazard locations
         self.possible_wumpus: Set[Tuple[int, int]] = set()
@@ -30,25 +25,25 @@ class KnowledgeBase:
         self.confirmed_pits: Set[Tuple[int, int]] = set()
         
         # Visited locations
-        self.visited: Set[Tuple[int, int]] = set()
+        # self.visited: Set[Tuple[int, int]] = set()
         
         # Track unvisited safe locations separately for prioritization
         self.unvisited_safe: Set[Tuple[int, int]] = set()
         
         # Percept history
-        self.percept_history: Dict[Tuple[int, int], List[str]] = defaultdict(list)
+        # self.percept_history: Dict[Tuple[int, int], List[str]] = defaultdict(list)
 
 
 
-    def add_percept(self, position: Tuple[int, int], percepts: List[str]) -> None:
+    def add_percept(self, position: Tuple[int, int], percepts: str) -> None:
         """Update KB with new percepts at given position"""
-        if position in self.percept_history:
-            return  # Already processed this percept
+        # if position in self.percept_history:
+        #     return  # Already processed this percept
 
         print(f"[KB] Processing percepts at {position}: {percepts}")
         
-        self.visited.add(position)
-        self.percept_history[position] = percepts
+        # self.visited.add(position)
+        # self.percept_history[position] = percepts
         self.safe_locations.add(position)  # If we're alive, this place is safe
         
         # Remove from unvisited_safe since we're visiting it now
