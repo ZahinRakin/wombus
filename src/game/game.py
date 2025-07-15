@@ -67,7 +67,7 @@ class WumpusGame:
         agent_status = self.agent.get_status()
         print(f"\nPosition: {agent_status['position']}")
         print(f"Arrows: {agent_status['arrow_count']}")
-        print(f"Gold: {'Yes' if agent_status['has_gold'] else 'No'}")
+        print(f"Gold: {agent_status['gold_count']}")
         print(f"Score: {agent_status['score']}")
         print(f"Percepts: {self.get_percepts()}")
 
@@ -107,9 +107,9 @@ class WumpusGame:
         self.game_world = copy.deepcopy(self.original_world)
         
         # Mark visited cells
-        # for row, col in self.agent.visited_cells:
-        #     if (row, col) != self.agent.position:
-        #         self.game_world[row][col] = self.agent.agent_config.trail_symbol
+        for row, col in self.agent.path:
+            if (row, col) != self.agent.position:
+                self.game_world[row][col] = self.agent.agent_config.trail_symbol
         
         # Place agent
         row, col = self.agent.position
@@ -228,6 +228,7 @@ class WumpusGame:
             if len(self.agent.path) > 0:
                 old = self.agent.path.pop()
                 self.agent.position = self.agent.path[-1]
+                self._update_board_state()
                 return True, f"rolled back from {old} to {self.agent.position}"
 
         new_pos = self.agent.get_next_position(direction)
@@ -294,6 +295,8 @@ class WumpusGame:
             if self.agent.grab_gold():
                 self.original_world[row][col] = '-'
                 self._update_board_state()
+                if self.graphics_enabled:
+                    self.graphics.animate_victory()
                 return True, "✨ Gold collected!"
             return False, "Already has gold"
         return False, "No gold here"

@@ -15,6 +15,7 @@ class AgentConfig:
     win_bonus: int = 500
     agent_symbol: str = 'A'
     trail_symbol: str = '.'
+    expected_gold_count: int = 1
 
     def get_config(self) -> Dict:
         return {k: v for k, v in self.__dict__.items()}
@@ -26,7 +27,7 @@ class Agent:
         self.starting_position = agent_config.starting_position
         self.path: List[Tuple[int, int]] = [self.position]
         self.arrow_count = agent_config.arrow_count
-        self.has_gold = False
+        self.gold_count = 0
         self.must_move = False
         self.is_alive = True
         self.score = 0
@@ -64,11 +65,10 @@ class Agent:
         return None
 
     def grab_gold(self) -> bool:
-        if not self.has_gold:
-            self.has_gold = True
-            self.score += self.agent_config.gold_reward
-            return True
-        return False
+        self.gold_count += 1
+        self.score += self.agent_config.gold_reward
+        return True
+     
 
     def shoot_arrow(self) -> bool:
         if self.arrow_count > 0:
@@ -85,7 +85,7 @@ class Agent:
         return self.position == self.starting_position
 
     def has_won(self) -> bool:
-        return self.has_gold and self.is_at_starting_position()
+        return self.gold_count == self.agent_config.expected_gold_count
    
     def get_random_direction(self) -> str:
         d_int = random.randint(1, 4)
@@ -145,10 +145,10 @@ class Agent:
         global percepts
         time.sleep(0.5)
 
-        if self.has_gold and self.is_at_starting_position():
+        if self.gold_count == self.agent_config.expected_gold_count:
             return 'win', "congratulations!"
 
-        if 'G' in percept and '~G' not in percept and not self.has_gold:
+        if 'G' in percept and '~G' not in percept:
             return 'grab', "Grabbing gold"
 
         neighbors = self.get_neighbors()
@@ -201,7 +201,7 @@ class Agent:
         return {
             'position': self.position,
             'arrow_count': self.arrow_count,
-            'has_gold': self.has_gold,
+            'gold_count': self.gold_count,
             'is_alive': self.is_alive,
             'score': self.score,
         }
@@ -209,7 +209,7 @@ class Agent:
     def reset(self) -> None:
         self.position = self.starting_position
         self.arrow_count = self.agent_config.arrow_count
-        self.has_gold = False
+        self.gold_count = 0
         self.is_alive = True
         self.score = 0
         self.path = [self.starting_position]

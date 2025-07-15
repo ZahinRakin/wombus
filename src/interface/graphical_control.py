@@ -226,7 +226,7 @@ class WumpusGraphics:
         info_lines = [
             f"Position: {agent.position}",
             f"Arrows: {agent.arrow_count}",
-            f"Gold: {'Yes' if agent.has_gold else 'No'}",
+            f"Gold: {agent.gold_count}",
             f"Score: {agent.score}"
         ]
 

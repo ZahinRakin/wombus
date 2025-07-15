@@ -39,9 +39,24 @@ class WorldLoader:
         board[9][0] = 'A'
         
         # Place some hazards and gold
-        board[7][3] = 'P'
-        board[5][5] = 'W'
-        board[2][8] = 'G'
+        # board[8][3] = 'P'
+        board[8][6] = 'P'
+        board[7][0] = 'P'
+        board[7][7] = 'G'
+
+        board[5][0] = 'W'
+        board[5][6] = 'P'
+
+        board[4][3] = 'G'
+
+        board[3][5] = 'P'
+
+        board[2][6] = 'P'
+
+        board[1][2] = 'W'
+
+        board[0][3] = 'P'
+        board[0][6] = 'P'
         
         return board
 

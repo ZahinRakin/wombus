@@ -9,7 +9,7 @@ def main() -> None:
     try:
         agent = Agent(AgentConfig())
         game = WumpusGame(
-            world_file="worlds/default.world",
+            world_file="worlds/default.txt",
             agent=agent,
             graphics=True
         )
