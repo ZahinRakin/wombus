@@ -51,17 +51,17 @@ COLORS = {
 class WumpusGraphics:
     def __init__(self):
         pygame.init()
-        self.window_width = MIN_WINDOW_WIDTH
-        self.window_height = MIN_WINDOW_HEIGHT
+        self.window_width = pygame.display.Info().current_w
+        self.window_height = pygame.display.Info().current_h
         self.screen = pygame.display.set_mode((self.window_width, self.window_height), pygame.RESIZABLE)
-        pygame.display.set_caption("🎮 Wumpus World - AI Agent Adventure")
+        pygame.display.set_caption("Wumpus World - AI Agent Adventure")
         self.clock = pygame.time.Clock()
         self.animation_time = time.time()
         self.particles = []
         
         # Calculate board position (centered)
         self.board_x = (self.window_width - BOARD_WIDTH) // 2
-        self.board_y = (self.window_height - BOARD_HEIGHT - UI_HEIGHT) // 2 + 40  # 40px for title
+        self.board_y = (self.window_height - BOARD_HEIGHT - UI_HEIGHT) // 2 + 40 # 40px for title
         
         # Load fonts
         self.font_title = pygame.font.Font(None, 48)
@@ -129,7 +129,7 @@ class WumpusGraphics:
         pulse = math.sin(self.animation_time * 2) * 0.1 + 0.9
         
         # Main title
-        title_text = "🎮 WUMPUS WORLD"
+        title_text = "WUMPUS WORLD"
         title_surface = self.font_title.render(title_text, True, COLORS['title_primary'])
         title_rect = title_surface.get_rect(center=(self.window_width // 2, title_y + 15))
         
@@ -466,7 +466,7 @@ class WumpusGraphics:
             red_surf.fill((255, 0, 0, alpha))
             self.screen.blit(red_surf, (0, 0))
             
-            death_text = self.font_title.render("💀 GAME OVER 💀", True, (255, 255, 255))
+            death_text = self.font_title.render("GAME OVER", True, (255, 255, 255))
             text_rect = death_text.get_rect(center=(self.window_width//2, self.window_height//2))
             self.screen.blit(death_text, text_rect)
             
@@ -487,7 +487,7 @@ class WumpusGraphics:
                 sparkle_y = 50 + 30 * math.sin(frame * 0.1 + i)
                 pygame.draw.circle(self.screen, (255, 215, 0), (int(sparkle_x), int(sparkle_y)), 3)
             
-            victory_text = self.font_title.render("🏆 VICTORY! 🏆", True, (50, 255, 50))
+            victory_text = self.font_title.render("VICTORY!", True, (50, 255, 50))
             text_rect = victory_text.get_rect(center=(self.window_width//2, self.window_height//2))
             self.screen.blit(victory_text, text_rect)
             
