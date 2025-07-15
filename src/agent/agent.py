@@ -104,6 +104,11 @@ class Agent:
         self.update_knowledge(percepts)
 
         print(f"[DECISION] At {self.position}, has_gold: {self.has_gold}")
+        
+        # Show current knowledge state
+        status = self.knowledge_base.get_status_info()
+        print(f"[STATUS] Unvisited safe locations: {status['unvisited_safe']}")
+        print(f"[STATUS] All safe locations: {status['safe_locations']}")
 
         if "Glitter" in percepts and not self.has_gold:
             print(f"[DECISION] Grabbing gold at {self.position}")
@@ -112,15 +117,22 @@ class Agent:
         if self.has_gold and self.is_at_starting_position():
             return 'win', "Returned with gold"
 
-        if target := self._find_nearest_unvisited_safe():
-            if direction := self._get_direction_to(target):
-                print(f"[DECISION] Moving safely toward {target} via {direction}")
-                return 'move', direction
+        # Use the new prioritized safe moves method
+        safe_moves = self.knowledge_base.get_safe_moves(self.position)
+        if safe_moves:
+            direction = safe_moves[0]  # Take first safe move
+            print(f"[DECISION] Moving safely {direction}")
+            return 'move', direction
 
         if self.has_gold and not self.is_at_starting_position():
             if direction := self._get_direction_to(self.starting_position):
                 print(f"[DECISION] Returning home via {direction}")
                 return 'move', direction
+
+        # FRONTIER EXPLORATION: If no safe moves, try to explore frontier
+        if direction := self._explore_frontier():
+            print(f"[DECISION] Exploring frontier {direction}")
+            return 'move', direction
 
         if self.arrow_count > 0 and self.knowledge_base.possible_wumpus:
             if direction := self._aim_at_wumpus():
@@ -170,10 +182,123 @@ class Agent:
                     queue.append((neighbor, path + [neighbor]))
         return None
 
-    def _detect_loop(self) -> bool:
-        if len(self.position_history) > 8:
-            return self.position_history[-4:] == self.position_history[-8:-4]
-        return False
+    def _explore_frontier(self) -> Optional[str]:
+        """
+        Frontier-based exploration: Find the safest unexplored cell adjacent to known safe areas
+        This breaks loops by systematically exploring the boundary of known safe territory
+        """
+        print("[FRONTIER] Looking for frontier exploration opportunities...")
+        
+        # Find all frontier cells (unvisited cells adjacent to visited safe cells)
+        frontier_candidates = []
+        
+        for safe_pos in self.knowledge_base.safe_locations:
+            if safe_pos in self.visited_cells:  # Only consider visited safe cells as frontier base
+                for dr, dc in self.directions.values():
+                    nr, nc = safe_pos[0] + dr, safe_pos[1] + dc
+                    neighbor = (nr, nc)
+                    
+                    # Check if this neighbor is a valid frontier cell
+                    if (0 <= nr < 10 and 0 <= nc < 10 and 
+                        neighbor not in self.visited_cells and
+                        neighbor not in self.knowledge_base.confirmed_pits and
+                        neighbor not in self.knowledge_base.confirmed_wumpus):
+                        
+                        # Calculate risk score for this frontier cell
+                        risk_score = self._calculate_risk_score(neighbor)
+                        frontier_candidates.append((neighbor, risk_score, safe_pos))
+        
+        if not frontier_candidates:
+            print("[FRONTIER] No frontier candidates found")
+            return None
+        
+        # Sort by risk score (lower is better) and distance from current position
+        frontier_candidates.sort(key=lambda x: (x[1], self._manhattan_distance(self.position, x[0])))
+        
+        print(f"[FRONTIER] Found {len(frontier_candidates)} frontier candidates")
+        for pos, risk, base in frontier_candidates[:3]:  # Show top 3
+            print(f"[FRONTIER] {pos} (risk: {risk}, base: {base})")
+        
+        # Try to move to the safest frontier cell
+        target_pos, _, _ = frontier_candidates[0]
+        
+        # Check if we can move directly to this frontier cell
+        for direction, (dr, dc) in self.directions.items():
+            nr, nc = self.position[0] + dr, self.position[1] + dc
+            if (nr, nc) == target_pos:
+                print(f"[FRONTIER] Direct move to frontier cell {target_pos}")
+                return direction
+        
+        # If not directly reachable, find path to the frontier through safe cells
+        path_direction = self._get_direction_to_frontier(target_pos)
+        if path_direction:
+            print(f"[FRONTIER] Moving towards frontier via {path_direction}")
+            return path_direction
+        
+        print("[FRONTIER] No path to frontier found")
+        return None
+    
+    def _calculate_risk_score(self, position: Tuple[int, int]) -> float:
+        """Calculate risk score for a position (lower is safer)"""
+        risk = 0.0
+        
+        # Higher risk if it's a possible pit or wumpus location
+        if position in self.knowledge_base.possible_pits:
+            risk += 0.5
+        if position in self.knowledge_base.possible_wumpus:
+            risk += 0.7
+        
+        # Lower risk if adjacent to more safe cells
+        safe_neighbors = sum(1 for adj in self._get_adjacent_positions(position) 
+                           if adj in self.knowledge_base.safe_locations)
+        risk -= safe_neighbors * 0.1
+        
+        return risk
+    
+    def _get_adjacent_positions(self, position: Tuple[int, int]) -> List[Tuple[int, int]]:
+        """Get valid adjacent positions"""
+        r, c = position
+        adjacent = []
+        for dr, dc in self.directions.values():
+            nr, nc = r + dr, c + dc
+            if 0 <= nr < 10 and 0 <= nc < 10:
+                adjacent.append((nr, nc))
+        return adjacent
+    
+    def _manhattan_distance(self, pos1: Tuple[int, int], pos2: Tuple[int, int]) -> int:
+        """Calculate Manhattan distance between two positions"""
+        return abs(pos1[0] - pos2[0]) + abs(pos1[1] - pos2[1])
+    
+    def _get_direction_to_frontier(self, target: Tuple[int, int]) -> Optional[str]:
+        """Find direction to move towards a frontier target through safe cells"""
+        from collections import deque
+        
+        queue = deque([(self.position, [])])
+        visited = {self.position}
+        
+        while queue:
+            current, path = queue.popleft()
+            
+            # If we found a path to target, return first move
+            if current == target and path:
+                first_move = path[0]
+                for direction, (dr, dc) in self.directions.items():
+                    if (self.position[0] + dr, self.position[1] + dc) == first_move:
+                        return direction
+            
+            # Explore safe neighbors
+            for direction, (dr, dc) in self.directions.items():
+                nr, nc = current[0] + dr, current[1] + dc
+                neighbor = (nr, nc)
+                
+                if (0 <= nr < 10 and 0 <= nc < 10 and 
+                    neighbor not in visited and
+                    (neighbor in self.knowledge_base.safe_locations or neighbor == target)):
+                    visited.add(neighbor)
+                    new_path = path + [neighbor] if path else [neighbor]
+                    queue.append((neighbor, new_path))
+        
+        return None
 
     def _aim_at_wumpus(self) -> Optional[str]:
         if not self.knowledge_base.possible_wumpus:
