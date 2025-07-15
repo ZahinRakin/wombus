@@ -1,4 +1,5 @@
 import random
+import time
 from dataclasses import dataclass
 from typing import Set, Tuple, List, Dict, Optional
 from ..utils.constants import percepts
@@ -26,6 +27,7 @@ class Agent:
         self.path: List[Tuple[int, int]] = [self.position]
         self.arrow_count = agent_config.arrow_count
         self.has_gold = False
+        self.must_move = False
         self.is_alive = True
         self.score = 0
         self.action_history: List[str] = []
@@ -85,7 +87,7 @@ class Agent:
     def has_won(self) -> bool:
         return self.has_gold and self.is_at_starting_position()
 
-    def infer_wumpus_shoot(self, neighbors) -> Tuple[str, Optional[str]]:
+    def infer_wumpus_shoot(self, neighbors) -> Tuple[str, str]:
         global percepts
         pot_cell = set()
         for neighbor in neighbors:
@@ -94,7 +96,9 @@ class Agent:
                 pot_cell.add(self._get_direction_to(neighbor))
         if len(pot_cell) == 1:
             return "shoot", pot_cell.pop()
-        return "move", "rollback"
+        if len(pot_cell) > 1 and self.must_move and self.arrow_count > 0:
+            return "shoot", pot_cell.pop()
+        return "pass", "pass"
 
     def infer_pit(self, neighbors) -> None:
         global percepts
@@ -108,12 +112,14 @@ class Agent:
             percepts[r][c] = percepts[r][c].replace('P?', 'P')
 
     def _get_direction_to(self, target: Tuple[int, int]) -> Optional[str]:
-        x, y = self.position[0] - target[0], self.position[1] - target[1]
-        if x == 0:
-            return 'right' if y < 0 else 'left'
-        if y == 0:
-            return 'down' if x < 0 else 'up'
+        dx = target[0] - self.position[0]
+        dy = target[1] - self.position[1]
+        if dx == 0:
+            return 'right' if dy > 0 else 'left'
+        if dy == 0:
+            return 'down' if dx > 0 else 'up'
         return None
+
 
     def get_neighbors(self) -> List[Tuple[int, int]]:
         neighbors = []
@@ -123,43 +129,60 @@ class Agent:
                 neighbors.append((nr, nc))
         return neighbors
 
-    def decide_action(self, percept: str) -> Tuple[str, Optional[str]]:
+    def decide_action(self, percept: str) -> Tuple[str, str]:
         global percepts
+        time.sleep(0.5)
 
         if self.has_gold and self.is_at_starting_position():
-            return 'win', "rollback"
+            return 'win', "congratulations!"
 
-        if 'G' in percept and not self.has_gold:
-            self.has_gold = True
-            self.score += self.agent_config.gold_reward
-            percepts[self.position[0]][self.position[1]] += 'G'
+        if 'G' in percept and '~G' not in percept and not self.has_gold:
             return 'grab', "Grabbing gold"
 
         neighbors = self.get_neighbors()
 
+        # Try moving to safe unvisited neighbors
+        for r, c in neighbors:
+            if 'V' not in percepts[r][c] and '~W' in percepts[r][c] and '~P' in percepts[r][c]:
+                direction = self._get_direction_to((r, c))
+                if direction:
+                    return 'move', direction
+
+        # Add inference if breeze or stench is detected
         if 'S' in percept:
             for r, c in neighbors:
                 if 'V' in percepts[r][c]:
                     percepts[r][c] += '~W'
                 else:
-                    percepts[r][c] += 'W?'
+                    if 'W?' not in percepts[r][c]:
+                        percepts[r][c] += 'W?'
 
         if 'B' in percept:
             for r, c in neighbors:
                 if 'V' in percepts[r][c]:
                     percepts[r][c] += '~P'
                 else:
-                    percepts[r][c] += 'P?'
-
-        for r, c in neighbors:
-            if 'W?' in percepts[r][c] and 'P?' in percepts[r][c]:
-                percepts[r][c] = '~W~P'
-                if 'V' not in percepts[r][c]:
-                    dir = self._get_direction_to((r, c))
-                    return "move", dir
+                    if 'P?' not in percepts[r][c]:
+                        percepts[r][c] += 'P?'
 
         self.infer_pit(neighbors)
-        return self.infer_wumpus_shoot(neighbors)
+        move, direction = self.infer_wumpus_shoot(neighbors)
+        if move != 'pass':
+            return move, direction
+
+        # Explore unknown neighbors if no threat known
+        for r, c in neighbors:
+            if 'V' not in percepts[r][c] and 'W?' not in percepts[r][c] and 'P?' not in percepts[r][c]:
+                direction = self._get_direction_to((r, c))
+                if direction:
+                    return 'move', direction
+
+        # Rollback only if there's something to rollback to
+        if len(self.path) > 1:
+            return 'move', 'rollback'
+
+        return 'pass', 'pass'
+
 
     def get_status(self) -> Dict:
         return {

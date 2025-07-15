@@ -1,6 +1,5 @@
 # import random
-from typing import List, Tuple, Dict, Optional
-from pathlib import Path
+from typing import List, Tuple, Optional
 
 class WorldLoader:
     def __init__(self, file_path: str = "worlds/default.world", world_size: Tuple[int, int] = (10, 10)):

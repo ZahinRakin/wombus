@@ -2,7 +2,6 @@
 import time
 import copy
 from typing import List, Dict, Tuple
-# from pathlib import Path
 from ..environment.world_load import WorldLoader
 from ..agent.agent import Agent, AgentConfig
 from ..interface.graphical_control import WumpusGraphics
@@ -193,47 +192,43 @@ class WumpusGame:
         return display_board
 # elite methods that causes the problem. 
     def get_percepts(self) -> str:
-        """Get percepts at the current agent position"""
         row, col = self.agent.position
 
-        # Only generate if cell hasn't been visited
         if 'V' not in percepts[row][col]:
             percepts[row][col] += 'V'
             self.agent.path.append((row, col))
             self.game_world[row][col] = self.agent.agent_config.trail_symbol
 
-            # Adjacent cell check for hazards
             adjacent = [(row - 1, col), (row + 1, col), (row, col - 1), (row, col + 1)]
             for r, c in adjacent:
                 if 0 <= r < self.world_size[0] and 0 <= c < self.world_size[1]:
                     cell = self.original_world[r][c]
-                    if 'W' in cell and 'S' not in percepts[row][col]:
+                    if cell == 'W' and 'S' not in percepts[row][col]:
                         percepts[row][col] += 'S'
-                    if 'P' in cell and 'B' not in percepts[row][col]:
+                    if cell == 'P' and 'B' not in percepts[row][col]:
                         percepts[row][col] += 'B'
 
-            # Detect gold
             if self.original_world[row][col] == 'G':
                 percepts[row][col] += 'G'
             else:
                 percepts[row][col] += '~G'
 
-            # Add negated hazard info if no hazard in current cell
             if 'W' not in self.original_world[row][col]:
                 percepts[row][col] += '~W'
             if 'P' not in self.original_world[row][col]:
                 percepts[row][col] += '~P'
 
-            print(f"[PERCEPTS] At {self.agent.position} → {percepts[row][col]}")  # Debug log
+            print(f"[PERCEPTS] At {self.agent.position} → {percepts[row][col]}")
 
         return percepts[row][col]
 
+
     def _move_agent(self, direction: str) -> Tuple[bool, str]:
         if direction == "rollback":
-            if len(self.agent.path) > 1:
-                self.agent.path.pop()
-                self.agent.move(self.agent.path[-1])
-            return True, "Rolled back"
+            if len(self.agent.path) > 0:
+                old = self.agent.path.pop()
+                self.agent.position = self.agent.path[-1]
+                return True, f"rolled back from {old} to {self.agent.position}"
 
         new_pos = self.agent.get_next_position(direction)
         if not new_pos:
@@ -275,17 +270,18 @@ class WumpusGame:
             if self.original_world[r][c] == 'W':
                 # updated the stench percepts since wumpus died
                 if r-1 >= 0 and 'S' in percepts[r-1][c]:
-                    percepts[r-1][c].replace('S', "~S") # since wumpus is killed
+                    percepts[r-1][c].replace('S', "") # since wumpus is killed
                 if r+1 < self.world_size[0] and 'S' in percepts[r+1][c]:
-                    percepts[r+1][c].replace('S', "~S")
+                    percepts[r+1][c].replace('S', "")
                 if c-1 >= 0 and 'S' in percepts[r][c-1]:
-                    percepts[r][c-1].replace('S', "~S")
+                    percepts[r][c-1].replace('S', "")
                 if c+1 < self.world_size[1] and 'S' in percepts[r][c+1]:
-                    percepts[r][c+1].replace('S', "~S")
+                    percepts[r][c+1].replace('S', "")
                     
                 self.original_world[r][c] = '-'
                 self._update_board_state()
                 return True, "🏹 You killed the Wumpus!"
+            percepts[r][c] += '~W'
             r += dr
             c += dc
             
