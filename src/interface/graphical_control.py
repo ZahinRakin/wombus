@@ -525,7 +525,6 @@ class WumpusGraphics:
         
         options = [
             ("Restart Game", "restart"),
-            ("Take Snapshot", "snapshot"),
             ("Quit Game", "quit")
         ]
         
