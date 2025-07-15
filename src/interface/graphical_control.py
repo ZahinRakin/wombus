@@ -2,10 +2,9 @@
 import pygame
 import time
 import math
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict
 from pathlib import Path
 from ..agent.agent import Agent
-from ..environment.world_load import WorldLoader
 
 # Constants
 TILE_SIZE = 60
@@ -227,44 +226,6 @@ class WumpusGraphics:
         # Optional: Add a pulsing effect to make it more visible
         pulse_radius = 6 + int(2 * math.sin(self.animation_time * 3))
         pygame.draw.circle(surface, COLORS['trail'], center, pulse_radius, 1)
-
-    # def draw_tile(self, x, y, tile_type):
-    #     """Draw an individual tile with enhanced graphics"""
-    #     pixel_x = x * TILE_SIZE
-    #     pixel_y = y * TILE_SIZE
-    #     center = (pixel_x + TILE_SIZE // 2, pixel_y + TILE_SIZE // 2)
-        
-    #     # Draw tile background with gradient effect
-    #     tile_rect = pygame.Rect(pixel_x, pixel_y, TILE_SIZE, TILE_SIZE)
-    #     pygame.draw.rect(self.screen, COLORS['tile_empty'], tile_rect)
-        
-    #     # Add subtle inner shadow
-    #     pygame.draw.rect(self.screen, COLORS['tile_border'], tile_rect, 2)
-        
-    #     # Draw tile contents based on type
-    #     if tile_type == 'A': # player or agent 
-    #         self.draw_agent(self.screen, center)
-            
-    #     elif tile_type == 'W':  # Wumpus
-    #         self.draw_wumpus(self.screen, center)
-            
-    #     elif tile_type == 'G':  # Gold
-    #         self.draw_gold(self.screen, center)
-                
-    #     elif tile_type == 'P':  # Pit
-    #         self.draw_pit(self.screen, center)
-            
-    #     elif tile_type == 'B':  # Breeze
-    #         self.draw_breeze(self.screen, center)
-            
-    #     elif tile_type == 'S':  # Stench
-    #         self.draw_stench(self.screen, center)
-            
-    #     elif tile_type == 'R':  # Arrow
-    #         self.draw_arrow(self.screen, center)
-        
-    #     elif tile_type == '.':  # trails of wumpus
-    #         self.draw_trail(self.screen, center)
 
     def draw_ui(self, 
                 has_gold: bool,
