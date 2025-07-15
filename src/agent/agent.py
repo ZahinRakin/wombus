@@ -86,6 +86,18 @@ class Agent:
 
     def has_won(self) -> bool:
         return self.has_gold and self.is_at_starting_position()
+   
+    def get_random_direction(self) -> str:
+        d_int = random.randint(1, 4)
+        if d_int == 1:
+            return "left"
+        if d_int == 2:
+            return "right"
+        if d_int == 3:
+            return "up"
+        if d_int == 4:
+            return "down"
+        return "right"
 
     def infer_wumpus_shoot(self, neighbors) -> Tuple[str, str]:
         global percepts
@@ -96,8 +108,8 @@ class Agent:
                 pot_cell.add(self._get_direction_to(neighbor))
         if len(pot_cell) == 1:
             return "shoot", pot_cell.pop()
-        if len(pot_cell) > 1 and self.must_move and self.arrow_count > 0:
-            return "shoot", pot_cell.pop()
+        if len(pot_cell) > 1 and self.must_move:
+            return "shoot", random.choice(list(pot_cell))
         return "pass", "pass"
 
     def infer_pit(self, neighbors) -> None:
@@ -166,9 +178,10 @@ class Agent:
                         percepts[r][c] += 'P?'
 
         self.infer_pit(neighbors)
-        move, direction = self.infer_wumpus_shoot(neighbors)
-        if move != 'pass':
-            return move, direction
+        if self.arrow_count > 0:
+            action, dir = self.infer_wumpus_shoot(neighbors)
+            if action != "pass":
+                return action, dir
 
         # Explore unknown neighbors if no threat known
         for r, c in neighbors:
@@ -181,7 +194,7 @@ class Agent:
         if len(self.path) > 1:
             return 'move', 'rollback'
 
-        return 'pass', 'pass'
+        return 'move', self.get_random_direction() # random.
 
 
     def get_status(self) -> Dict:
