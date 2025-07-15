@@ -125,6 +125,7 @@ class WumpusGame:
         if self.graphics_enabled:
             self.graphics.animate_death()
         self._update_display(message)
+        self._post_game_options()
 
     def _handle_victory(self) -> None:
         """Handle victory scenario"""
@@ -133,6 +134,7 @@ class WumpusGame:
         if self.graphics_enabled:
             self.graphics.animate_victory()
         self._update_display("Victory!")
+        self._post_game_options()
 
     def get_game_status(self) -> Dict: # formerly get_game_state
         """Return complete game state"""
@@ -303,7 +305,18 @@ class WumpusGame:
     
     def run_autonomous(self) -> None:  # main method of this file.
         """Run game in autonomous mode with AI agent"""
+        import pygame  # Ensure pygame is imported for event processing
         while not self.game_over:
+            # Process pygame events to keep window responsive
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    if self.graphics_enabled:
+                        self.graphics.close()
+                    exit()
+                elif event.type == pygame.VIDEORESIZE and self.graphics_enabled:
+                    self.graphics.handle_resize(event)
+                    # Redraw board after resize
+                    self.graphics.draw_board(self.get_display_board(), self.agent)
             percepts = self.get_percepts()
             action, reason = self.agent.decide_action(percepts)
             
@@ -319,3 +332,14 @@ class WumpusGame:
                 
             print(f"Action: {action} {reason} - {message}")
             # time.sleep(0.5)
+
+    def _post_game_options(self):
+        if self.graphics_enabled:
+            choice = self.graphics.display_options()
+            if choice == "restart":
+                self._reset_game()
+                self.run_autonomous()
+            elif choice == "quit":
+                self.graphics.close()
+                exit()
+            # else: do nothing (close or snapshot)

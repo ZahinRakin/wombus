@@ -15,16 +15,6 @@ def main() -> None:
         )
 
         while not game.game_over:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.quit()
-                    sys.exit()
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_f:
-                        pygame.display.toggle_fullscreen()
-                    elif event.key == pygame.K_m:
-                        pygame.display.iconify()
-
             game.run_autonomous()
 
     except Exception as e:
