@@ -42,51 +42,95 @@ class KnowledgeBase:
         if position in self.percept_history:
             return  # Already processed this percept
 
+        print(f"[KB] Processing percepts at {position}: {percepts}")
+        
         self.visited.add(position)
         self.percept_history[position] = percepts
         self.safe_locations.add(position)  # If we're alive, this place is safe
 
-        # Mark adjacent cells as safe if there's no hazard indicator
-        if "Stench" not in percepts:
-            self._mark_adjacent_safe(position, 'wumpus')
-        if "Breeze" not in percepts:
-            self._mark_adjacent_safe(position, 'pit')
+        # Process each percept type
+        has_stench = "Stench" in percepts
+        has_breeze = "Breeze" in percepts
+        has_glitter = "Glitter" in percepts
 
-        # Logical clauses: Stench
+        print(f"[KB] Stench: {has_stench}, Breeze: {has_breeze}, Glitter: {has_glitter}")
+
+        # Handle Stench percept
         stench_sym = PropositionalLogic.to_propositional(position, 'S')
-        if "Stench" in percepts:
+        if has_stench:
+            print(f"[KB] Adding stench clause at {position}")
             self.prover.add_clause([stench_sym])
+            
+            # At least one adjacent cell has a wumpus
             wumpus_neighbors = [
                 PropositionalLogic.to_propositional(pos, 'W') 
                 for pos in self._get_adjacent(position)
             ]
-            self.prover.add_clause([f"¬{stench_sym}"] + wumpus_neighbors)
-            for wumpus_sym in wumpus_neighbors:
-                self.prover.add_clause([f"¬{wumpus_sym}", stench_sym])
+            if wumpus_neighbors:
+                # S → (W1 ∨ W2 ∨ ... ∨ Wn) which is ¬S ∨ W1 ∨ W2 ∨ ... ∨ Wn
+                self.prover.add_clause([f"¬{stench_sym}"] + wumpus_neighbors)
+                
+                # Each wumpus implies stench: Wi → S which is ¬Wi ∨ S
+                for wumpus_sym in wumpus_neighbors:
+                    self.prover.add_clause([f"¬{wumpus_sym}", stench_sym])
         else:
+            print(f"[KB] No stench at {position} - marking adjacent cells safe from wumpus")
             self.prover.add_clause([f"¬{stench_sym}"])
+            
+            # No adjacent wumpus: ¬S → ¬W1 ∧ ¬W2 ∧ ... which is S ∨ ¬Wi for each i
+            for adj_pos in self._get_adjacent(position):
+                wumpus_sym = PropositionalLogic.to_propositional(adj_pos, 'W')
+                self.prover.add_clause([stench_sym, f"¬{wumpus_sym}"])
+                self.safe_locations.add(adj_pos)
 
-        # Logical clauses: Breeze
+        # Handle Breeze percept
         breeze_sym = PropositionalLogic.to_propositional(position, 'B')
-        if "Breeze" in percepts:
+        if has_breeze:
+            print(f"[KB] Adding breeze clause at {position}")
+            self.prover.add_clause([breeze_sym])
+            
+            # At least one adjacent cell has a pit
             pit_neighbors = [
                 PropositionalLogic.to_propositional(pos, 'P')
                 for pos in self._get_adjacent(position)
             ]
-            self.prover.add_clause([f"¬{breeze_sym}"] + pit_neighbors)
-            for pit_sym in pit_neighbors:
-                self.prover.add_clause([f"¬{pit_sym}", breeze_sym])
+            if pit_neighbors:
+                # B → (P1 ∨ P2 ∨ ... ∨ Pn) which is ¬B ∨ P1 ∨ P2 ∨ ... ∨ Pn
+                self.prover.add_clause([f"¬{breeze_sym}"] + pit_neighbors)
+                
+                # Each pit implies breeze: Pi → B which is ¬Pi ∨ B
+                for pit_sym in pit_neighbors:
+                    self.prover.add_clause([f"¬{pit_sym}", breeze_sym])
         else:
+            print(f"[KB] No breeze at {position} - marking adjacent cells safe from pits")
             self.prover.add_clause([f"¬{breeze_sym}"])
+            
+            # No adjacent pits: ¬B → ¬P1 ∧ ¬P2 ∧ ... which is B ∨ ¬Pi for each i
+            for adj_pos in self._get_adjacent(position):
+                pit_sym = PropositionalLogic.to_propositional(adj_pos, 'P')
+                self.prover.add_clause([breeze_sym, f"¬{pit_sym}"])
+                self.safe_locations.add(adj_pos)
 
-        # Use resolution to try to prove Wumpus positions
+        # Use resolution to try to prove or disprove hazards in adjacent cells
         for neighbor in self._get_adjacent(position):
-            w_sym = PropositionalLogic.to_propositional(neighbor, 'W')
-            if neighbor not in self.confirmed_wumpus and self.prover.prove(w_sym):
-                self.confirmed_wumpus.add(neighbor)
-                print(f"[LOGIC] Wumpus definitely at {neighbor}")
-            elif self.prover.prove(f"¬{w_sym}"):
-                self.safe_locations.add(neighbor)
+            if neighbor not in self.visited:
+                # Check wumpus
+                w_sym = PropositionalLogic.to_propositional(neighbor, 'W')
+                if self.prover.prove(w_sym):
+                    self.confirmed_wumpus.add(neighbor)
+                    print(f"[LOGIC] Wumpus definitely at {neighbor}")
+                elif self.prover.prove(f"¬{w_sym}"):
+                    self.safe_locations.add(neighbor)
+                    print(f"[LOGIC] No wumpus at {neighbor} - marked safe")
+                
+                # Check pit
+                p_sym = PropositionalLogic.to_propositional(neighbor, 'P')
+                if self.prover.prove(p_sym):
+                    self.confirmed_pits.add(neighbor)
+                    print(f"[LOGIC] Pit definitely at {neighbor}")
+                elif self.prover.prove(f"¬{p_sym}"):
+                    self.safe_locations.add(neighbor)
+                    print(f"[LOGIC] No pit at {neighbor} - marked safe")
 
 
 
@@ -124,11 +168,13 @@ class KnowledgeBase:
         adjacent = [(x-1,y), (x+1,y), (x,y-1), (x,y+1)]
         
         for pos in adjacent:
-            if hazard_type == 'wumpus' and pos in self.possible_wumpus:
-                self.possible_wumpus.remove(pos)
-            elif hazard_type == 'pit' and pos in self.possible_pits:
-                self.possible_pits.remove(pos)
-            self.safe_locations.add(pos)
+            if 0 <= pos[0] < 10 and 0 <= pos[1] < 10:  # Check bounds
+                if hazard_type == 'wumpus' and pos in self.possible_wumpus:
+                    self.possible_wumpus.remove(pos)
+                elif hazard_type == 'pit' and pos in self.possible_pits:
+                    self.possible_pits.remove(pos)
+                self.safe_locations.add(pos)
+                print(f"[KB] Marked {pos} as safe from {hazard_type}")
 
     def _get_adjacent(self, position: Tuple[int, int]) -> List[Tuple[int, int]]:
         x, y = position

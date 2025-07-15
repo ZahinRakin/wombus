@@ -46,15 +46,19 @@ class WumpusGame:
     def _update_display(self, status: str) -> None:
         """Update visual display if graphics enabled"""
         if self.graphics_enabled:
-            self.graphics.draw_board(self.game_world, self.agent, status)
+            display_board = self.get_display_board()
+            self.graphics.draw_board(display_board, self.agent, status)
         else:
             self._print_text_status(status)
 
     def _print_text_status(self, status: str) -> None:
         """Print text-based status update"""
         print(f"\nStep {self.step_count}: {status}")
+        
+        # Use display board for text output too
+        display_board = self.get_display_board()
         print("  " + " ".join(str(i) for i in range(self.world_size[1])))
-        for i, row in enumerate(self.game_world):
+        for i, row in enumerate(display_board):
             print(f"{i} " + " ".join(row))
         
         agent_status = self.agent.get_status()
@@ -64,7 +68,30 @@ class WumpusGame:
         print(f"Score: {agent_status['score']}")
         print(f"Percepts: {self.get_percepts()}")
 
-    def get_percepts(self) -> List[str]:
+    def print_board(self) -> None:
+        """Print the current game board with percept indicators"""
+        display_board = self.get_display_board()
+        print("\nCurrent Game State (with Percept Indicators):")
+        print("  " + " ".join(str(i) for i in range(self.world_size[1])))
+        for i, row in enumerate(display_board):
+            print(f"{i} " + " ".join(row))
+        
+        print("\nLegend:")
+        print("  A = Agent    W = Wumpus    P = Pit    G = Gold")
+        print("  B = Breeze   S = Stench    - = Empty  . = Visited")
+
+    def print_status(self) -> None:
+        """Print current game status"""
+        agent_status = self.agent.get_status()
+        print(f"\nAgent Status:")
+        print(f"Position: {agent_status['position']}")
+        print(f"Arrows: {agent_status['arrow_count']}")
+        print(f"Gold: {'Yes' if agent_status['has_gold'] else 'No'}")
+        print(f"Score: {agent_status['score']}")
+        print(f"Alive: {'Yes' if agent_status['is_alive'] else 'No'}")
+        print(f"Current Percepts: {self.get_percepts()}")
+
+    def get_percepts(self) -> List[str]:      # needs to be monitored
         percepts = []
         row, col = self.agent.position
 
@@ -267,3 +294,36 @@ class WumpusGame:
                 
             print(f"Action: {action} {reason} - {message}")
             time.sleep(0.5)
+
+    def get_display_board(self) -> List[List[str]]:
+        """Create a display board that shows breeze and stench indicators"""
+        display_board = [row[:] for row in self.game_world]  # Copy game board
+        
+        # Add breeze indicators where agent would sense nearby pits
+        for row in range(self.world_size[0]):
+            for col in range(self.world_size[1]):
+                # Skip if cell already has something important
+                if display_board[row][col] in ['A', 'W', 'P', 'G']:
+                    continue
+                
+                # Check for adjacent hazards
+                has_adjacent_pit = False
+                has_adjacent_wumpus = False
+                
+                # Check all adjacent cells
+                adjacent = [(row-1,col), (row+1,col), (row,col-1), (row,col+1)]
+                for r, c in adjacent:
+                    if 0 <= r < self.world_size[0] and 0 <= c < self.world_size[1]:
+                        cell = self.original_world[r][c]
+                        if cell == 'P':
+                            has_adjacent_pit = True
+                        elif cell == 'W':
+                            has_adjacent_wumpus = True
+                
+                # Add percept indicators (prioritize stench over breeze if both)
+                if has_adjacent_wumpus:
+                    display_board[row][col] = 'S'  # Stench
+                elif has_adjacent_pit:
+                    display_board[row][col] = 'B'  # Breeze
+        
+        return display_board

@@ -16,6 +16,7 @@ class ResolutionProver:
         # Only check literals that have complements in the other clause
         for lit in c1:
             comp_lit = f"¬{lit}" if not lit.startswith('¬') else lit[1:]
+            print(f"Resolving {c1} with {c2} on {lit} and {comp_lit}")
             if comp_lit in c2:
                 resolvent = (c1 | c2) - {lit, comp_lit}
                 if resolvent:  # Only add non-empty clauses

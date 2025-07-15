@@ -30,12 +30,12 @@ COLORS = {
     'ui_text': (200, 200, 200),
     'ui_bg': (35, 40, 55),
     'arrow': (255, 140, 0),
-    'breeze': (173, 216, 230),
-    'stench': (144, 238, 144),
+    'breeze': (100, 200, 255),      # Light blue for wind/air
+    'stench': (255, 100, 100),      # Light red for danger/smell
     'trail': (100, 100, 100),
     'trail_glow': (150, 150, 150),
-    'safe': (0, 100, 0, 50),  # Semi-transparent green
-    'danger': (100, 0, 0, 50)  # Semi-transparent red
+    'safe': (0, 100, 0, 50),        # Semi-transparent green
+    'danger': (100, 0, 0, 50)       # Semi-transparent red
 }
 
 class WumpusGraphics:
@@ -104,28 +104,68 @@ class WumpusGraphics:
             pygame.draw.circle(surface, COLORS['pit_glow'], (int(swirl_x), int(swirl_y)), 3)
 
     def draw_breeze(self, surface, center):
-        """Draw breeze effect (indicates nearby pit)"""
-        # Draw flowing lines
-        for i in range(4):
-            angle = self.animation_time + i * 1.5
-            start_x = center[0] + math.cos(angle) * 20
-            start_y = center[1] + math.sin(angle) * 20
-            end_x = center[0] + math.cos(angle + 0.5) * 25
-            end_y = center[1] + math.sin(angle + 0.5) * 25
+        """Draw breeze effect (indicates nearby pit) with wind symbol"""
+        # Draw wind swirls
+        for i in range(3):
+            angle = self.animation_time * 2 + i * 2.1
+            radius = 15 + i * 5
+            start_angle = angle
+            end_angle = angle + 1.5
             
-            pygame.draw.line(surface, COLORS['breeze'], 
-                           (int(start_x), int(start_y)), 
-                           (int(end_x), int(end_y)), 2)
+            # Calculate arc points
+            start_x = center[0] + math.cos(start_angle) * radius
+            start_y = center[1] + math.sin(start_angle) * radius
+            end_x = center[0] + math.cos(end_angle) * radius
+            end_y = center[1] + math.sin(end_angle) * radius
+            
+            # Draw curved lines to represent wind
+            pygame.draw.arc(surface, COLORS['breeze'], 
+                          (center[0] - radius, center[1] - radius, radius * 2, radius * 2),
+                          start_angle, end_angle, 3)
+        
+        # Add flowing particles
+        for i in range(6):
+            particle_angle = self.animation_time * 3 + i * 1.0
+            particle_radius = 20 + math.sin(self.animation_time * 4 + i) * 5
+            px = center[0] + math.cos(particle_angle) * particle_radius
+            py = center[1] + math.sin(particle_angle) * particle_radius
+            pygame.draw.circle(surface, COLORS['breeze'], (int(px), int(py)), 2)
+        
+        # Add "B" text indicator
+        font = pygame.font.Font(None, 24)
+        text = font.render("B", True, COLORS['breeze'])
+        text_rect = text.get_rect(center=(center[0], center[1] + 25))
+        surface.blit(text, text_rect)
 
     def draw_stench(self, surface, center):
-        """Draw stench effect (indicates nearby Wumpus)"""
-        # Draw wavy lines
-        for i in range(3):
-            y_offset = math.sin(self.animation_time * 3 + i) * 10
-            start_pos = (center[0] - 15, center[1] + y_offset)
-            end_pos = (center[0] + 15, center[1] + y_offset)
+        """Draw stench effect (indicates nearby Wumpus) with stink lines"""
+        # Draw stench waves
+        for i in range(4):
+            wave_offset = math.sin(self.animation_time * 4 + i * 0.5) * 3
+            y_pos = center[1] - 20 + i * 10 + wave_offset
             
-            pygame.draw.line(surface, COLORS['stench'], start_pos, end_pos, 2)
+            # Draw wavy stench lines
+            points = []
+            for x_offset in range(-20, 21, 4):
+                wave_y = y_pos + math.sin((x_offset + self.animation_time * 50) * 0.3) * 2
+                points.append((center[0] + x_offset, wave_y))
+            
+            if len(points) > 1:
+                pygame.draw.lines(surface, COLORS['stench'], False, points, 2)
+        
+        # Add skull-like indicator for danger
+        skull_center = (center[0], center[1] - 5)
+        pygame.draw.circle(surface, COLORS['stench'], skull_center, 8)
+        
+        # Eyes
+        pygame.draw.circle(surface, (0, 0, 0), (skull_center[0] - 3, skull_center[1] - 2), 2)
+        pygame.draw.circle(surface, (0, 0, 0), (skull_center[0] + 3, skull_center[1] - 2), 2)
+        
+        # Add "S" text indicator
+        font = pygame.font.Font(None, 24)
+        text = font.render("S", True, COLORS['stench'])
+        text_rect = text.get_rect(center=(center[0], center[1] + 25))
+        surface.blit(text, text_rect)
 
     def draw_arrow(self, surface, center):
         """Draw an arrow"""
