@@ -600,3 +600,110 @@ def caller(n=1):
     import inspect
     return inspect.getouterframes(inspect.currentframe())[n][3]
 
+def memoize(fn, slot=None):
+    """Memoize fn: make it remember the computed value for any argument list.
+    If slot is specified, store result in that slot of first argument.
+    If slot is false, store results in a dictionary."""
+    if slot:
+        def memoized_fn(obj, *args):
+            if hasattr(obj, slot):
+                return getattr(obj, slot)
+            else:
+                val = fn(obj, *args)
+                setattr(obj, slot, val)
+                return val
+    else:
+        def memoized_fn(*args):
+            if not memoized_fn.cache.has_key(args):
+                memoized_fn.cache[args] = fn(*args)
+            return memoized_fn.cache[args]
+        memoized_fn.cache = {}
+    return memoized_fn
+
+def if_(test, result, alternative):
+    """Like C++ and Java's (test ? result : alternative), except
+    both result and alternative are always evaluated. However, if
+    either evaluates to a function, it is applied to the empty arglist,
+    so you can delay execution by putting it in a lambda.
+    >>> if_(2 + 2 == 4, 'ok', lambda: expensive_computation())
+    'ok'
+    """
+    if test:
+        if callable(result): return result()
+        return result
+    else:
+        if callable(alternative): return alternative()
+        return alternative
+
+def name(object):
+    "Try to find some reasonable name for the object."
+    return (getattr(object, 'name', 0) or getattr(object, '__name__', 0)
+            or getattr(getattr(object, '__class__', 0), '__name__', 0)
+            or str(object))
+
+def isnumber(x):
+    "Is x a number? We say it is if it has a __int__ method."
+    return hasattr(x, '__int__')
+
+def issequence(x):
+    "Is x a sequence? We say it is if it has a __getitem__ method."
+    return hasattr(x, '__getitem__')
+
+def print_table(table, header=None, sep='   ', numfmt='%g'):
+    """Print a list of lists as a table, so that columns line up nicely.
+    header, if specified, will be printed as the first row.
+    numfmt is the format for all numbers; you might want e.g. '%6.2f'.
+    (If you want different formats in different columns, don't use print_table.)
+    sep is the separator between columns."""
+    justs = [if_(isnumber(x), 'rjust', 'ljust') for x in table[0]]
+    if header:
+        table = [header] + table
+    table = [[if_(isnumber(x), lambda: numfmt % x, lambda: x) for x in row]
+             for row in table]
+    maxlen = lambda seq: max(map(len, seq))
+    sizes = map(maxlen, zip(*[map(str, row) for row in table]))
+    for row in table:
+        print sep.join(getattr(str(x), j)(size)
+                       for (j, size, x) in zip(justs, sizes, row))
+
+def AIMAFile(components, mode='r'):
+    "Open a file based at the AIMA root directory."
+    import utils
+    dir = os.path.dirname(utils.__file__)
+    return open(apply(os.path.join, [dir] + components), mode)
+
+def DataFile(name, mode='r'):
+    "Return a file in the AIMA /data directory."
+    return AIMAFile(['..', 'data', name], mode)
+
+def unimplemented():
+    "Use this as a stub for not-yet-implemented functions."
+    raise NotImplementedError
+
+#______________________________________________________________________________
+# Queues: Stack, FIFOQueue, PriorityQueue
+
+class Queue:
+    """Queue is an abstract class/interface. There are three types:
+        Stack(): A Last In First Out Queue.
+        FIFOQueue(): A First In First Out Queue.
+        PriorityQueue(order, f): Queue in sorted order (default min-first).
+    Each type supports the following methods and functions:
+        q.append(item)  -- add an item to the queue
+        q.extend(items) -- equivalent to: for item in items: q.append(item)
+        q.pop()         -- return the top item from the queue
+        len(q)          -- number of items in q (also q.__len())
+        item in q       -- does q contain item?
+    Note that isinstance(Stack(), Queue) is false, because we implement stacks
+    as lists.  If Python ever gets interfaces, Queue will be an interface."""
+
+    def __init__(self):
+        abstract
+
+    def extend(self, items):
+        for item in items: self.append(item)
+
+def Stack():
+    """Return an empty list, suitable as a Last-In-First-Out Queue."""
+    return []
+
