@@ -165,4 +165,130 @@ class Expr:
         "Need a hash method so Exprs can live in dicts."
         return hash(self.op) ^ hash(tuple(self.args))
 
-   
+     # See http://www.python.org/doc/current/lib/module-operator.html
+    # Not implemented: not, abs, pos, concat, contains, *item, *slice
+    def __lt__(self, other):     return Expr('<',  self, other)
+    def __le__(self, other):     return Expr('<=', self, other)
+    def __ge__(self, other):     return Expr('>=', self, other)
+    def __gt__(self, other):     return Expr('>',  self, other)
+    def __add__(self, other):    return Expr('+',  self, other)
+    def __sub__(self, other):    return Expr('-',  self, other)
+    def __and__(self, other):    return Expr('&',  self, other)
+    def __div__(self, other):    return Expr('/',  self, other)
+    def __truediv__(self, other):return Expr('/',  self, other)
+    def __invert__(self):        return Expr('~',  self)
+    def __lshift__(self, other): return Expr('<<', self, other)
+    def __rshift__(self, other): return Expr('>>', self, other)
+    def __mul__(self, other):    return Expr('*',  self, other)
+    def __neg__(self):           return Expr('-',  self)
+    def __or__(self, other):     return Expr('|',  self, other)
+    def __pow__(self, other):    return Expr('**', self, other)
+    def __xor__(self, other):    return Expr('^',  self, other)
+    def __mod__(self, other):    return Expr('<=>',  self, other)
+
+
+
+def expr(s):
+    """Create an Expr representing a logic expression by parsing the input
+    string. Symbols and numbers are automatically converted to Exprs.
+    In addition you can use alternative spellings of these operators:
+      'x ==> y'   parses as   (x >> y)    # Implication
+      'x <== y'   parses as   (x << y)    # Reverse implication
+      'x <=> y'   parses as   (x % y)     # Logical equivalence
+      'x =/= y'   parses as   (x ^ y)     # Logical disequality (xor)
+    But BE CAREFUL; precedence of implication is wrong. expr('P & Q ==> R & S')
+    is ((P & (Q >> R)) & S); so you must use expr('(P & Q) ==> (R & S)').
+    >>> expr('P <=> Q(1)')
+    (P <=> Q(1))
+    >>> expr('P & Q | ~R(x, F(x))')
+    ((P & Q) | ~R(x, F(x)))
+    """
+    if isinstance(s, Expr): return s
+    if isnumber(s): return Expr(s)
+    ## Replace the alternative spellings of operators with canonical spellings
+    s = s.replace('==>', '>>').replace('<==', '<<')
+    s = s.replace('<=>', '%').replace('=/=', '^')
+    ## Replace a symbol or number, such as 'P' with 'Expr("P")'
+    s = re.sub(r'([a-zA-Z0-9_.]+)', r'Expr("\1")', s)
+    ## Now eval the string.  (A security hole; do not use with an adversary.)
+    return eval(s, {'Expr':Expr})
+
+def is_symbol(s):
+    "A string s is a symbol if it starts with an alphabetic char."
+    return isinstance(s, str) and s[:1].isalpha()
+
+def is_var_symbol(s):
+    "A logic variable symbol is an initial-lowercase string."
+    return is_symbol(s) and s[0].islower()
+
+def is_prop_symbol(s):
+    """A proposition logic symbol is an initial-uppercase string other than
+    TRUE or FALSE."""
+    return is_symbol(s) and s[0].isupper() and s != 'TRUE' and s != 'FALSE'
+
+def variables(s):
+    """Return a set of the variables in expression s.
+    >>> ppset(variables(F(x, A, y)))
+    set([x, y])
+    >>> ppset(variables(F(G(x), z)))
+    set([x, z])
+    >>> ppset(variables(expr('F(x, x) & G(x, y) & H(y, z) & R(A, z, z)')))
+    set([x, y, z])
+    """
+    result = set([])
+    def walk(s):
+        if is_variable(s):
+            result.add(s)
+        else:
+            for arg in s.args:
+                walk(arg)
+    walk(s)
+    return result
+
+## Useful constant Exprs used in examples and code:
+TRUE, FALSE, ZERO, ONE, TWO = map(Expr, ['TRUE', 'FALSE', 0, 1, 2])
+A, B, C, D, E, F, G, P, Q, x, y, z  = map(Expr, 'ABCDEFGPQxyz')
+
+#______________________________________________________________________________
+
+def tt_entails(kb, alpha):
+    """Does kb entail the sentence alpha? Use truth tables. For propositional
+    kb's and sentences. [Fig. 7.10]
+    >>> tt_entails(expr('P & Q'), expr('Q'))
+    True
+    """
+    assert not variables(alpha)
+    return tt_check_all(kb, alpha, prop_symbols(kb & alpha), {})
+
+def tt_check_all(kb, alpha, symbols, model):
+    "Auxiliary routine to implement tt_entails."
+    if not symbols:
+        if pl_true(kb, model):
+            result = pl_true(alpha, model)
+            assert result in (True, False)
+            return result
+        else:
+            return True
+    else:
+        P, rest = symbols[0], symbols[1:]
+        return (tt_check_all(kb, alpha, rest, extend(model, P, True)) and
+                tt_check_all(kb, alpha, rest, extend(model, P, False)))
+
+def prop_symbols(x):
+    "Return a list of all propositional symbols in x."
+    if not isinstance(x, Expr):
+        return []
+    elif is_prop_symbol(x.op):
+        return [x]
+    else:
+        return list(set(symbol for arg in x.args
+                        for symbol in prop_symbols(arg)))
+
+def tt_true(alpha):
+    """Is the propositional sentence alpha a tautology? (alpha will be
+    coerced to an expr.)
+    >>> tt_true(expr("(P >> Q) <=> (~P | Q)"))
+    True
+    """
+    return tt_entails(TRUE, expr(alpha))
+
