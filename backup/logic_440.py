@@ -118,3 +118,35 @@ def resolve(clause0, clause1, literal):
   return clause0.union(clause1)
 
 
+class KnowledgeBasedAgent:
+  def __init__(self):
+    self.KB = logic.PropKB()
+
+  def safe(self):
+    """Return the set of safe locations to move to."""
+    raise NotImplementedError()
+
+  def not_unsafe(self):
+    """Return the set of locations that can't be proven unsafe to move to."""
+    raise NotImplementedError()
+
+  def unvisited(self):
+    """Return the set of locations that haven't yet been visited."""
+    raise NotImplementedError()
+
+  def choose_location(self):
+    """Return the next location to explore in the search for gold."""
+    unvisited_locations = self.unvisited()
+    safe_moves = self.safe().intersection(unvisited_locations)
+    if safe_moves:
+      location = min(safe_moves)
+      print 'Moving to safe location', location
+    else:
+      not_unsafe_moves = self.not_unsafe().intersection(unvisited_locations)
+      if not_unsafe_moves:
+        location = min(not_unsafe_moves)
+        print 'Taking a risk; moving to a not-unsafe location', location
+      else:
+        print 'Nowhere left to go'
+        raise GameOver(RESULT_GIVE_UP)
+    return location
