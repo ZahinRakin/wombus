@@ -168,4 +168,55 @@ except NameError:
             def __hash__(self):
                 return self.hash
 
-       
+        class set(BaseSet):
+            "A set is a BaseSet that does not have a hash, but is mutable."
+
+            def update(self, other):
+                for e in other:
+                    self.add(e)
+                return self
+
+            def intersection_update(self, other):
+                for e in self.dict.keys():
+                    if e not in other:
+                        self.remove(e)
+                return self
+
+            def difference_update(self, other):
+                for e in self.dict.keys():
+                    if e in other:
+                        self.remove(e)
+                return self
+
+            def symmetric_difference_update(self, other):
+                to_remove1 = [e for e in self.dict if e in other]
+                to_remove2 = [e for e in other if e in self.dict]
+                self.difference_update(to_remove1)
+                self.difference_update(to_remove2)
+                return self
+
+            def add(self, element):
+                self.dict[element] = 1
+
+            def remove(self, element):
+                del self.dict[element]
+
+            def discard(self, element):
+                if element in self.dict:
+                    del self.dict[element]
+
+            def pop(self):
+                key, val = self.dict.popitem()
+                return key
+
+            def clear(self):
+                self.dict.clear()
+
+            __ior__ = update
+            __iand__ = intersection_update
+            __isub__ = difference_update
+            __ixor__ = symmetric_difference_update
+
+
+
+
