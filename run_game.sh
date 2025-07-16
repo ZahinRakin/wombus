@@ -46,14 +46,41 @@ check_python() {
 # Install dependencies if needed
 install_dependencies() {
     print_info "Installing dependencies..."
-    if [ -f "requirements.txt" ]; then
-        $PYTHON_CMD -m pip install -r requirements.txt
-        print_success "Dependencies installed"
-    else
-        print_warning "No requirements.txt found, installing pygame directly..."
-        $PYTHON_CMD -m pip install pygame numpy
-        print_success "Basic dependencies installed"
+    
+    # Try system packages first (for Ubuntu/Debian)
+    if command -v apt &> /dev/null && [ "$EUID" -eq 0 ]; then
+        print_info "Installing via apt (system packages)..."
+        apt update && apt install -y python3-pygame python3-numpy
+        return $?
     fi
+    
+    # Try with --user flag first
+    if [ -f "requirements.txt" ]; then
+        print_info "Attempting user-level installation..."
+        if $PYTHON_CMD -m pip install --user -r requirements.txt 2>/dev/null; then
+            print_success "Dependencies installed in user directory"
+            return 0
+        fi
+    fi
+    
+    # Try installing individual packages with --user
+    print_info "Installing pygame and numpy with --user flag..."
+    if $PYTHON_CMD -m pip install --user pygame numpy 2>/dev/null; then
+        print_success "Dependencies installed in user directory"
+        return 0
+    fi
+    
+    # If all else fails, suggest manual installation
+    print_error "Automatic installation failed. Please install manually:"
+    echo "  Option 1 (Recommended): sudo apt install python3-pygame python3-numpy"
+    echo "  Option 2: python3 -m pip install --user pygame numpy"
+    echo "  Option 3: Create virtual environment:"
+    echo "    python3 -m venv venv"
+    echo "    source venv/bin/activate"
+    echo "    pip install pygame numpy"
+    echo ""
+    echo "Then run the script again."
+    return 1
 }
 
 # Check if required modules are available
@@ -62,7 +89,7 @@ check_dependencies() {
     
     # Check for pygame
     if ! $PYTHON_CMD -c "import pygame" 2>/dev/null; then
-        print_warning "pygame not found, installing dependencies..."
+        print_warning "pygame not found, attempting to install..."
         install_dependencies
         return $?
     fi
