@@ -5,6 +5,55 @@ import time
 from load_world import WorldLoader
 from agent import Agent
 
+class PerceptPopup:
+    """Popup window for major percepts"""
+    def __init__(self, parent, event_data):
+        self.popup = tk.Toplevel(parent)
+        self.popup.title(f"{event_data['type']} Detected!")
+        self.popup.geometry("300x150")
+        self.popup.resizable(False, False)
+        
+        # Center the popup
+        self.popup.transient(parent)
+        self.popup.grab_set()
+        
+        # Configure colors based on event type
+        bg_color = {"GOLD": "#FFD700", "BREEZE": "#FFA500", "STENCH": "#FF6B6B"}.get(event_data['color'], "#F0F0F0")
+        self.popup.configure(bg=bg_color)
+        
+        # Main frame
+        main_frame = tk.Frame(self.popup, bg=bg_color, padx=20, pady=20)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Message
+        message_label = tk.Label(main_frame, text=event_data['message'], 
+                                font=("Arial", 12, "bold"), bg=bg_color, 
+                                justify=tk.CENTER, wraplength=250)
+        message_label.pack(pady=(0, 15))
+        
+        # OK button
+        ok_button = tk.Button(main_frame, text="OK", command=self.close_popup,
+                             font=("Arial", 10), width=10)
+        ok_button.pack()
+        
+        # Auto close after 2 seconds (shorter duration)
+        self.popup.after(2000, self.close_popup)
+        
+        # Focus and center
+        self.popup.focus_set()
+        self.center_popup(parent)
+    
+    def center_popup(self, parent):
+        """Center the popup on the parent window"""
+        parent.update_idletasks()
+        x = parent.winfo_x() + (parent.winfo_width() // 2) - 150
+        y = parent.winfo_y() + (parent.winfo_height() // 2) - 75
+        self.popup.geometry(f"300x150+{x}+{y}")
+    
+    def close_popup(self):
+        """Close the popup"""
+        self.popup.destroy()
+
 class WumpusWorldGUI:
     def __init__(self):
         self.root = tk.Tk()
@@ -300,7 +349,12 @@ class WumpusWorldGUI:
     def update_status(self, message):
         """Update the status label"""
         self.status_label.config(text=message)
-        self.root.update()
+    
+    def show_percept_popups(self, events):
+        """Show popup notifications for major percepts"""
+        for event in events:
+            if event:  # Make sure event is not None
+                PerceptPopup(self.root, event)
     
     def run_game(self):
         """Run the game in a separate thread"""
@@ -357,7 +411,20 @@ class WumpusWorldGUI:
                 
                 if hasattr(self.agent, 'get_sensing_info'):
                     sensing_info = self.agent.get_sensing_info()
+                    # Debug print to console when sensing is detected
+                    if "BREEZE" in sensing_info or "STENCH" in sensing_info:
+                        print(f"SENSING UPDATE: {sensing_info} at position {self.agent.current_position}")
+                    
                     self.sensing_label.config(text=sensing_info)
+                else:
+                    self.sensing_label.config(text="Sensing: Unknown")
+                
+                # Check for major percept events and show popups
+                if hasattr(self.agent, 'get_and_clear_events'):
+                    events = self.agent.get_and_clear_events()
+                    if events:
+                        # Schedule popup display on main thread
+                        self.root.after(0, lambda: self.show_percept_popups(events))
                 
                 # Check if returned to start (only after collecting all gold)
                 if (next_move == self.agent.starting_position and 

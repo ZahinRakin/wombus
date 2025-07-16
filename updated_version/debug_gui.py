@@ -5,7 +5,7 @@ Debug version of Wumpus World Game - shows agent's decision making process
 
 import tkinter as tk
 from tkinter import ttk, scrolledtext
-from gui_improved import WumpusWorldGUI
+from gui_improved import WumpusWorldGUI, PerceptPopup
 import time
 
 class DebugWumpusWorldGUI(WumpusWorldGUI):
@@ -180,10 +180,25 @@ Valid Neighbors: {self.agent.get_valid_neighbors(*self.agent.current_position)}
                 
                 if hasattr(self.agent, 'get_sensing_info'):
                     sensing_status = self.agent.get_sensing_info()
-                    self.sensing_label.config(text=sensing_status)
+                    # Debug print to see sensing changes
+                    if "BREEZE" in sensing_status or "STENCH" in sensing_status:
+                        print(f"  SENSING DETECTED: {sensing_status}")
+                    
+                    if hasattr(self, 'sensing_label'):
+                        self.sensing_label.config(text=sensing_status)
+                    else:
+                        print(f"  WARNING: sensing_label not found in debug GUI")
+                    
                     self.update_status(f"Game running (Debug Mode) | {sensing_status}")
                 else:
                     self.update_status("Game running (Debug Mode)")
+                
+                # Check for major percept events and show popups
+                if hasattr(self.agent, 'get_and_clear_events'):
+                    events = self.agent.get_and_clear_events()
+                    if events:
+                        # Schedule popup display on main thread
+                        self.root.after(0, lambda: self.show_percept_popups(events))
                 
                 # Check if returned to start (only after collecting all gold)
                 if (next_move == self.agent.starting_position and 

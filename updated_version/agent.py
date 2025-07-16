@@ -15,14 +15,23 @@ class Agent:
         # Sensing information
         self.current_breeze = False
         self.current_stench = False
+        self.current_cell_content = '-'  # Store what's under the agent
+        
+        # Event tracking for popups
+        self.recent_events = []  # Store recent major percepts
+        self.last_sensing_state = {"breeze": False, "stench": False}
         
         # Check for gold at starting position before placing agent
-        if self.world.get_cell(position[0], position[1]) == 'G':
+        start_cell = self.world.get_cell(position[0], position[1])
+        if start_cell == 'G':
             self.found_gold = 1
             self.score += 1000  # Gold bonus
             self.knowledge_base[position[0]][position[1]].append('G')
         else:
             self.found_gold = 0
+        
+        # Store initial cell content before placing agent
+        self.current_cell_content = start_cell
             
         self.world.set_cell(position[0], position[1], 'A')
         self.path = []
@@ -57,7 +66,7 @@ class Agent:
         self.knowledge_base[current_x][current_y].append('~G')
 
         # Check if Breeze is Present
-        if self.world.get_cell(current_x, current_y) == 'B':
+        if self.current_cell_content == 'B' or self.current_cell_content == 'BS':
             self.current_breeze = True
             self.knowledge_base[current_x][current_y].append('B')
             for neighbor in valid_neighbors:
@@ -68,7 +77,7 @@ class Agent:
                 self.knowledge_base[neighbor[0]][neighbor[1]].append('~P')
 
         # Check if Stench is Present
-        if self.world.get_cell(current_x, current_y) == 'S':
+        if self.current_cell_content == 'S' or self.current_cell_content == 'BS':
             self.current_stench = True
             self.knowledge_base[current_x][current_y].append('S')
             for neighbor in valid_neighbors:
@@ -79,7 +88,7 @@ class Agent:
                 self.knowledge_base[neighbor[0]][neighbor[1]].append('~W')
 
         # Check if Stench and Breeze are Present
-        if self.world.get_cell(current_x, current_y) == 'BS':
+        if self.current_cell_content == 'BS':
             self.current_breeze = True
             self.current_stench = True
             self.knowledge_base[current_x][current_y].append('B')
@@ -103,36 +112,11 @@ class Agent:
             self.score -= 1000  # Death penalty
         else:
             self.knowledge_base[current_x][current_y].append('~W')
-        if self.world.get_cell(current_x, current_y) == 'S':
-            self.knowledge_base[current_x][current_y].append('S')
-            for neighbor in valid_neighbors:
-                self.knowledge_base[neighbor[0]][neighbor[1]].append('W?')
-        else:
-            self.knowledge_base[current_x][current_y].append('~S')
-            for neighbor in valid_neighbors:
-                self.knowledge_base[neighbor[0]][neighbor[1]].append('~W')
 
-        # Check if Stench and Breeze are Present
-        if self.world.get_cell(current_x, current_y) == 'BS':
-            self.knowledge_base[current_x][current_y].append('B')
-            self.knowledge_base[current_x][current_y].append('S')
-            for neighbor in valid_neighbors:
-                self.knowledge_base[neighbor[0]][neighbor[1]].append('P?')
-                self.knowledge_base[neighbor[0]][neighbor[1]].append('W?')
-        # else:
-        #     self.knowledge_base[current_x][current_y].append('~BS')  # covered by previous checks
-
-        # Check if Pit is Present
-        if self.world.get_cell(current_x, current_y) == 'P':
-            self.knowledge_base[current_x][current_y].append('P')
-        else:
-            self.knowledge_base[current_x][current_y].append('~P')
-        
-        # Check if Wumpus is Present
-        if self.world.get_cell(current_x, current_y) == 'W':
-            self.knowledge_base[current_x][current_y].append('W')
-        else:
-            self.knowledge_base[current_x][current_y].append('~W')
+        # Check for new sensing events (after all knowledge base updates)
+        if self.is_alive:
+            new_sensing_events = self.check_for_new_events()
+            self.recent_events.extend(new_sensing_events)
 
         # print("current self.knowledge_base:", self.knowledge_base)
 
@@ -245,10 +229,17 @@ class Agent:
             return False
         
         # Check for gold at the new position BEFORE placing the agent
+        gold_event = None
         if self.world.get_cell(new_x, new_y) == 'G':
             self.found_gold += 1
             self.score += 1000  # Gold bonus
+            gold_event = self.add_gold_found_event()
+            # Store the event for GUI to pick up
+            self.recent_events.append(gold_event)
             self.knowledge_base[new_x][new_y].append('G')
+        
+        # Store the original cell content before placing agent
+        self.current_cell_content = self.world.get_cell(new_x, new_y)
         
         # Update the world state
         self.world.set_cell(prev_pos[0], prev_pos[1], '+')
@@ -324,5 +315,45 @@ class Agent:
             return f"Sensing: {', '.join(sensing)}"
         else:
             return "Sensing: Nothing"
+    
+    def check_for_new_events(self):
+        """Check for new major percepts and return list of events"""
+        new_events = []
+        
+        # Check for new breeze detection
+        if self.current_breeze and not self.last_sensing_state["breeze"]:
+            new_events.append({
+                "type": "BREEZE",
+                "message": "⚠️ BREEZE DETECTED!\nThere's a pit nearby!",
+                "color": "orange"
+            })
+        
+        # Check for new stench detection
+        if self.current_stench and not self.last_sensing_state["stench"]:
+            new_events.append({
+                "type": "STENCH", 
+                "message": "🦨 STENCH DETECTED!\nThe Wumpus is nearby!",
+                "color": "red"
+            })
+        
+        # Update last sensing state
+        self.last_sensing_state["breeze"] = self.current_breeze
+        self.last_sensing_state["stench"] = self.current_stench
+        
+        return new_events
+    
+    def add_gold_found_event(self):
+        """Add gold found event"""
+        return {
+            "type": "GOLD",
+            "message": f"💰 GOLD FOUND!\nGold collected: {self.found_gold}/{self.expected_gold}\n+1000 points!",
+            "color": "gold"
+        }
+    
+    def get_and_clear_events(self):
+        """Get recent events and clear the list"""
+        events = self.recent_events.copy()
+        self.recent_events.clear()
+        return events
 
 
