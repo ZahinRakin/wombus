@@ -707,3 +707,259 @@ def Stack():
     """Return an empty list, suitable as a Last-In-First-Out Queue."""
     return []
 
+class FIFOQueue(Queue):
+    """A First-In-First-Out Queue."""
+    def __init__(self):
+        self.A = []; self.start = 0
+    def append(self, item):
+        self.A.append(item)
+    def __len__(self):
+        return len(self.A) - self.start
+    def extend(self, items):
+        self.A.extend(items)
+    def pop(self):
+        e = self.A[self.start]
+        self.start += 1
+        if self.start > 5 and self.start > len(self.A)/2:
+            self.A = self.A[self.start:]
+            self.start = 0
+        return e
+    def __contains__(self, item):
+        return item in self.A[self.start:]
+
+class PriorityQueue(Queue):
+    """A queue in which the minimum (or maximum) element (as determined by f and
+    order) is returned first. If order is min, the item with minimum f(x) is
+    returned first; if order is max, then it is the item with maximum f(x).
+    Also supports dict-like lookup."""
+    def __init__(self, order=min, f=lambda x: x):
+        update(self, A=[], order=order, f=f)
+    def append(self, item):
+        bisect.insort(self.A, (self.f(item), item))
+    def __len__(self):
+        return len(self.A)
+    def pop(self):
+        if self.order == min:
+            return self.A.pop(0)[1]
+        else:
+            return self.A.pop()[1]
+    def __contains__(self, item):
+        return some(lambda (_, x): x == item, self.A)
+    def __getitem__(self, key):
+        for _, item in self.A:
+            if item == key:
+                return item
+    def __delitem__(self, key):
+        for i, (value, item) in enumerate(self.A):
+            if item == key:
+                self.A.pop(i)
+                return
+
+## Fig: The idea is we can define things like Fig[3,10] later.
+## Alas, it is Fig[3,10] not Fig[3.10], because that would be the same
+## as Fig[3.1]
+Fig = {}
+
+#______________________________________________________________________________
+# Support for doctest
+
+def ignore(x): None
+
+def random_tests(text):
+    """Some functions are stochastic. We want to be able to write a test
+    with random output.  We do that by ignoring the output."""
+    def fixup(test):
+        if " = " in test:
+            return ">>> " + test
+        else:
+            return ">>> ignore(" + test + ")"
+    tests =  re.findall(">>> (.*)", text)
+    return '\n'.join(map(fixup, tests))
+
+#______________________________________________________________________________
+
+__doc__ += """
+>>> d = DefaultDict(0)
+>>> d['x'] += 1
+>>> d['x']
+1
+
+>>> d = DefaultDict([])
+>>> d['x'] += [1]
+>>> d['y'] += [2]
+>>> d['x']
+[1]
+
+>>> s = Struct(a=1, b=2)
+>>> s.a
+1
+>>> s.a = 3
+>>> s
+Struct(a=3, b=2)
+
+>>> def is_even(x):
+...     return x % 2 == 0
+>>> sorted([1, 2, -3])
+[-3, 1, 2]
+>>> sorted(range(10), key=is_even)
+[1, 3, 5, 7, 9, 0, 2, 4, 6, 8]
+>>> sorted(range(10), lambda x,y: y-x)
+[9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
+
+>>> removeall(4, [])
+[]
+>>> removeall('s', 'This is a test. Was a test.')
+'Thi i a tet. Wa a tet.'
+>>> removeall('s', 'Something')
+'Something'
+>>> removeall('s', '')
+''
+
+>>> list(reversed([]))
+[]
+
+>>> count_if(is_even, [1, 2, 3, 4])
+2
+>>> count_if(is_even, [])
+0
+
+>>> argmax([1], lambda x: x*x)
+1
+>>> argmin([1], lambda x: x*x)
+1
+
+
+# Test of memoize with slots in structures
+>>> countries = [Struct(name='united states'), Struct(name='canada')]
+
+# Pretend that 'gnp' was some big hairy operation:
+>>> def gnp(country):
+...     print 'calculating gnp ...'
+...     return len(country.name) * 1e10
+
+>>> gnp = memoize(gnp, '_gnp')
+>>> map(gnp, countries)
+calculating gnp ...
+calculating gnp ...
+[130000000000.0, 60000000000.0]
+>>> countries
+[Struct(_gnp=130000000000.0, name='united states'), Struct(_gnp=60000000000.0, name='canada')]
+
+# This time we avoid re-doing the calculation
+>>> map(gnp, countries)
+[130000000000.0, 60000000000.0]
+
+# Test Queues:
+>>> nums = [1, 8, 2, 7, 5, 6, -99, 99, 4, 3, 0]
+>>> def qtest(q):
+...     q.extend(nums)
+...     for num in nums: assert num in q
+...     assert 42 not in q
+...     return [q.pop() for i in range(len(q))]
+>>> qtest(Stack())
+[0, 3, 4, 99, -99, 6, 5, 7, 2, 8, 1]
+
+>>> qtest(FIFOQueue())
+[1, 8, 2, 7, 5, 6, -99, 99, 4, 3, 0]
+
+>>> qtest(PriorityQueue(min))
+[-99, 0, 1, 2, 3, 4, 5, 6, 7, 8, 99]
+
+>>> qtest(PriorityQueue(max))
+[99, 8, 7, 6, 5, 4, 3, 2, 1, 0, -99]
+
+>>> qtest(PriorityQueue(min, abs))
+[0, 1, 2, 3, 4, 5, 6, 7, 8, -99, 99]
+
+>>> qtest(PriorityQueue(max, abs))
+[99, -99, 8, 7, 6, 5, 4, 3, 2, 1, 0]
+
+>>> vals = [100, 110, 160, 200, 160, 110, 200, 200, 220]
+>>> histogram(vals)
+[(100, 1), (110, 2), (160, 2), (200, 3), (220, 1)]
+>>> histogram(vals, 1)
+[(200, 3), (160, 2), (110, 2), (220, 1), (100, 1)]
+>>> histogram(vals, 1, lambda v: round(v, -2))
+[(200.0, 6), (100.0, 3)]
+
+>>> log2(1.0)
+0.0
+
+>>> def fib(n):
+...     return (n<=1 and 1) or (fib(n-1) + fib(n-2))
+
+>>> fib(9)
+55
+
+# Now we make it faster:
+>>> fib = memoize(fib)
+>>> fib(9)
+55
+
+>>> q = Stack()
+>>> q.append(1)
+>>> q.append(2)
+>>> q.pop(), q.pop()
+(2, 1)
+
+>>> q = FIFOQueue()
+>>> q.append(1)
+>>> q.append(2)
+>>> q.pop(), q.pop()
+(1, 2)
+
+
+>>> abc = set('abc')
+>>> bcd = set('bcd')
+>>> 'a' in abc
+True
+>>> 'a' in bcd
+False
+>>> list(abc.intersection(bcd))
+['c', 'b']
+>>> list(abc.union(bcd))
+['a', 'c', 'b', 'd']
+
+## From "What's new in Python 2.4", but I added calls to sl
+
+>>> def sl(x):
+...     return sorted(list(x))
+
+
+>>> a = set('abracadabra')                  # form a set from a string
+>>> 'z' in a                                # fast membership testing
+False
+>>> sl(a)                                   # unique letters in a
+['a', 'b', 'c', 'd', 'r']
+
+>>> b = set('alacazam')                     # form a second set
+>>> sl(a - b)                               # letters in a but not in b
+['b', 'd', 'r']
+>>> sl(a | b)                               # letters in either a or b
+['a', 'b', 'c', 'd', 'l', 'm', 'r', 'z']
+>>> sl(a & b)                               # letters in both a and b
+['a', 'c']
+>>> sl(a ^ b)                               # letters in a or b but not both
+['b', 'd', 'l', 'm', 'r', 'z']
+
+
+>>> a.add('z')                              # add a new element
+>>> a.update('wxy')                         # add multiple new elements
+>>> sl(a)
+['a', 'b', 'c', 'd', 'r', 'w', 'x', 'y', 'z']
+>>> a.remove('x')                           # take one element out
+>>> sl(a)
+['a', 'b', 'c', 'd', 'r', 'w', 'y', 'z']
+
+>>> weighted_sample_with_replacement([], [], 0)
+[]
+>>> weighted_sample_with_replacement('a', [3], 2)
+['a', 'a']
+>>> weighted_sample_with_replacement('ab', [0, 3], 3)
+['b', 'b', 'b']
+"""
+
+__doc__ += random_tests("""
+>>> weighted_sample_with_replacement(range(10), [x*x for x in range(10)], 3)
+[8, 9, 6]
+""")
