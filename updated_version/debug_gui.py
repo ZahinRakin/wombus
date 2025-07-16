@@ -13,7 +13,7 @@ class DebugWumpusWorldGUI(WumpusWorldGUI):
         super().__init__()
         self.root.geometry("1400x800")  # Larger window for debug info
         # self.step_delay = 1.5  # Slower for debugging
-        self.step_delay = 0.5  # Faster for debugging, adjust as needed
+        self.step_delay = 0.2  # Faster for debugging, adjust as needed
         self.add_debug_panel()
         
     def add_debug_panel(self):
@@ -54,11 +54,15 @@ class DebugWumpusWorldGUI(WumpusWorldGUI):
             
         # Update Agent Status
         self.status_text.delete(1.0, tk.END)
+        sensing_info = self.agent.get_sensing_info() if hasattr(self.agent, 'get_sensing_info') else "Sensing: Unknown"
         status_info = f"""STEP {step_count}
 Current Position: {self.agent.current_position}
 Starting Position: {self.agent.starting_position}
 Direction: {self.agent.direction}
 Gold Found: {self.agent.found_gold}/{self.agent.expected_gold}
+Score: {self.agent.score}
+Is Alive: {self.agent.is_alive}
+{sensing_info}
 Path Length: {len(self.agent.path)}
 Next Cells to Explore: {len(self.agent.next_cells)}
 
@@ -121,7 +125,7 @@ Valid Neighbors: {self.agent.get_valid_neighbors(*self.agent.current_position)}
         self.move_history = []
         
         step_count = 0
-        max_steps = 1000
+        max_steps = 100000
         
         while self.game_running and step_count < max_steps:
             try:
@@ -168,6 +172,18 @@ Valid Neighbors: {self.agent.get_valid_neighbors(*self.agent.current_position)}
                 # Update display
                 self.draw_world()
                 self.gold_label.config(text=f"Gold Found: {self.agent.found_gold}/{self.agent.expected_gold}")
+                
+                # Update score and sensing display
+                if hasattr(self.agent, 'score'):
+                    self.score_label.config(text=f"Score: {self.agent.score}")
+                    self.root.title(f"Wumpus World Debug - Score: {self.agent.score}")
+                
+                if hasattr(self.agent, 'get_sensing_info'):
+                    sensing_status = self.agent.get_sensing_info()
+                    self.sensing_label.config(text=sensing_status)
+                    self.update_status(f"Game running (Debug Mode) | {sensing_status}")
+                else:
+                    self.update_status("Game running (Debug Mode)")
                 
                 # Check if returned to start (only after collecting all gold)
                 if (next_move == self.agent.starting_position and 

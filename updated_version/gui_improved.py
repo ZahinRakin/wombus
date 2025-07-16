@@ -111,7 +111,15 @@ class WumpusWorldGUI:
         
         # Gold counter
         self.gold_label = ttk.Label(info_frame, text="Gold Found: 0/0", font=("Arial", 10))
-        self.gold_label.pack(pady=(0, 10))
+        self.gold_label.pack(pady=(0, 5))
+        
+        # Score display
+        self.score_label = ttk.Label(info_frame, text="Score: 0", font=("Arial", 10, "bold"))
+        self.score_label.pack(pady=(0, 5))
+        
+        # Sensing information
+        self.sensing_label = ttk.Label(info_frame, text="Sensing: None", font=("Arial", 9), wraplength=150)
+        self.sensing_label.pack(pady=(0, 10))
         
         # Legend
         legend_frame = ttk.LabelFrame(info_frame, text="Legend", padding=5)
@@ -174,6 +182,14 @@ class WumpusWorldGUI:
             self.draw_reference_world()
             self.update_status("Game loaded. Click 'Start Game' to begin.")
             self.gold_label.config(text=f"Gold Found: {self.agent.found_gold}/{expected_gold}")
+            
+            # Reset score and sensing display
+            if hasattr(self.agent, 'score'):
+                self.score_label.config(text=f"Score: {self.agent.score}")
+            else:
+                self.score_label.config(text="Score: 0")
+                
+            self.sensing_label.config(text="Sensing: None")
             
             # Enable buttons
             self.start_btn.config(state=tk.NORMAL)
@@ -334,6 +350,14 @@ class WumpusWorldGUI:
                 # Update display
                 self.draw_world()
                 self.gold_label.config(text=f"Gold Found: {self.agent.found_gold}/{self.agent.expected_gold}")
+                
+                # Update score and sensing display
+                if hasattr(self.agent, 'score'):
+                    self.score_label.config(text=f"Score: {self.agent.score}")
+                
+                if hasattr(self.agent, 'get_sensing_info'):
+                    sensing_info = self.agent.get_sensing_info()
+                    self.sensing_label.config(text=sensing_info)
                 
                 # Check if returned to start (only after collecting all gold)
                 if (next_move == self.agent.starting_position and 

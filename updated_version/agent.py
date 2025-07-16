@@ -6,9 +6,20 @@ class Agent:
         self.current_position = position
         self.direction = 'up'
         
+        # Scoring system
+        self.score = 0  # Start with 0 score
+        self.step_count = 0
+        self.is_alive = True
+        self.game_won = False
+        
+        # Sensing information
+        self.current_breeze = False
+        self.current_stench = False
+        
         # Check for gold at starting position before placing agent
         if self.world.get_cell(position[0], position[1]) == 'G':
             self.found_gold = 1
+            self.score += 1000  # Gold bonus
             self.knowledge_base[position[0]][position[1]].append('G')
         else:
             self.found_gold = 0
@@ -24,6 +35,14 @@ class Agent:
         # get the current cell
         current_x, current_y = self.current_position
         self.path.append((current_x, current_y))
+        
+        # Increment step count and decrease score
+        self.step_count += 1
+        self.score -= 1  # -1 for each step
+        
+        # Reset sensing information
+        self.current_breeze = False
+        self.current_stench = False
 
         #get the valid neighboring cells
         valid_neighbors = self.get_valid_neighbors(current_x, current_y)
@@ -39,6 +58,7 @@ class Agent:
 
         # Check if Breeze is Present
         if self.world.get_cell(current_x, current_y) == 'B':
+            self.current_breeze = True
             self.knowledge_base[current_x][current_y].append('B')
             for neighbor in valid_neighbors:
                 self.knowledge_base[neighbor[0]][neighbor[1]].append('P?')
@@ -48,6 +68,41 @@ class Agent:
                 self.knowledge_base[neighbor[0]][neighbor[1]].append('~P')
 
         # Check if Stench is Present
+        if self.world.get_cell(current_x, current_y) == 'S':
+            self.current_stench = True
+            self.knowledge_base[current_x][current_y].append('S')
+            for neighbor in valid_neighbors:
+                self.knowledge_base[neighbor[0]][neighbor[1]].append('W?')
+        else:
+            self.knowledge_base[current_x][current_y].append('~S')
+            for neighbor in valid_neighbors:
+                self.knowledge_base[neighbor[0]][neighbor[1]].append('~W')
+
+        # Check if Stench and Breeze are Present
+        if self.world.get_cell(current_x, current_y) == 'BS':
+            self.current_breeze = True
+            self.current_stench = True
+            self.knowledge_base[current_x][current_y].append('B')
+            self.knowledge_base[current_x][current_y].append('S')
+            for neighbor in valid_neighbors:
+                self.knowledge_base[neighbor[0]][neighbor[1]].append('P?')
+                self.knowledge_base[neighbor[0]][neighbor[1]].append('W?')
+
+        # Check if Pit is Present (agent dies)
+        if self.world.get_cell(current_x, current_y) == 'P':
+            self.knowledge_base[current_x][current_y].append('P')
+            self.is_alive = False
+            self.score -= 1000  # Death penalty
+        else:
+            self.knowledge_base[current_x][current_y].append('~P')
+        
+        # Check if Wumpus is Present (agent dies)
+        if self.world.get_cell(current_x, current_y) == 'W':
+            self.knowledge_base[current_x][current_y].append('W')
+            self.is_alive = False
+            self.score -= 1000  # Death penalty
+        else:
+            self.knowledge_base[current_x][current_y].append('~W')
         if self.world.get_cell(current_x, current_y) == 'S':
             self.knowledge_base[current_x][current_y].append('S')
             for neighbor in valid_neighbors:
@@ -192,6 +247,7 @@ class Agent:
         # Check for gold at the new position BEFORE placing the agent
         if self.world.get_cell(new_x, new_y) == 'G':
             self.found_gold += 1
+            self.score += 1000  # Gold bonus
             self.knowledge_base[new_x][new_y].append('G')
         
         # Update the world state
@@ -247,5 +303,26 @@ class Agent:
                     '~W' in self.knowledge_base[i][j]):
                     return (i, j)
         return None
+    
+    def check_win_condition(self):
+        """Check if the agent has won and apply win bonus"""
+        if self.found_gold >= self.expected_gold and not self.game_won:
+            self.game_won = True
+            self.score += 500  # Win bonus
+            return True
+        return False
+    
+    def get_sensing_info(self):
+        """Get current sensing information as a string"""
+        sensing = []
+        if self.current_breeze:
+            sensing.append("BREEZE")
+        if self.current_stench:
+            sensing.append("STENCH")
+        
+        if sensing:
+            return f"Sensing: {', '.join(sensing)}"
+        else:
+            return "Sensing: Nothing"
 
 
