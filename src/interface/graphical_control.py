@@ -11,8 +11,8 @@ TILE_SIZE = 60
 ROWS, COLS = 10, 10
 BOARD_WIDTH, BOARD_HEIGHT = COLS * TILE_SIZE, ROWS * TILE_SIZE
 UI_HEIGHT = 120
-MIN_WINDOW_WIDTH = 800
-MIN_WINDOW_HEIGHT = 700
+MIN_WINDOW_WIDTH = 1200
+MIN_WINDOW_HEIGHT = 1000
 
 # Modern color palette
 COLORS = {
@@ -51,8 +51,8 @@ COLORS = {
 class WumpusGraphics:
     def __init__(self):
         pygame.init()
-        self.window_width = pygame.display.Info().current_w
-        self.window_height = pygame.display.Info().current_h
+        self.window_width = MIN_WINDOW_WIDTH
+        self.window_height = MIN_WINDOW_HEIGHT
         self.screen = pygame.display.set_mode((self.window_width, self.window_height), pygame.RESIZABLE)
         pygame.display.set_caption("Wumpus World - AI Agent Adventure")
         self.clock = pygame.time.Clock()
