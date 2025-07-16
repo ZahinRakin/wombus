@@ -406,3 +406,197 @@ def argmin_random_tie(seq, fn):
                 best = x
     return best
 
+def argmax(seq, fn):
+    """Return an element with highest fn(seq[i]) score; tie goes to first one.
+    >>> argmax(['one', 'to', 'three'], len)
+    'three'
+    """
+    return argmin(seq, lambda x: -fn(x))
+
+def argmax_list(seq, fn):
+    """Return a list of elements of seq[i] with the highest fn(seq[i]) scores.
+    >>> argmax_list(['one', 'three', 'seven'], len)
+    ['three', 'seven']
+    """
+    return argmin_list(seq, lambda x: -fn(x))
+
+def argmax_random_tie(seq, fn):
+    "Return an element with highest fn(seq[i]) score; break ties at random."
+    return argmin_random_tie(seq, lambda x: -fn(x))
+#______________________________________________________________________________
+# Statistical and mathematical functions
+
+def histogram(values, mode=0, bin_function=None):
+    """Return a list of (value, count) pairs, summarizing the input values.
+    Sorted by increasing value, or if mode=1, by decreasing count.
+    If bin_function is given, map it over values first."""
+    if bin_function: values = map(bin_function, values)
+    bins = {}
+    for val in values:
+        bins[val] = bins.get(val, 0) + 1
+    if mode:
+        return sorted(bins.items(), key=lambda x: (x[1],x[0]), reverse=True)
+    else:
+        return sorted(bins.items())
+
+def log2(x):
+    """Base 2 logarithm.
+    >>> log2(1024)
+    10.0
+    """
+    return math.log10(x) / math.log10(2)
+
+def mode(values):
+    """Return the most common value in the list of values.
+    >>> mode([1, 2, 3, 2])
+    2
+    """
+    return histogram(values, mode=1)[0][0]
+
+def median(values):
+    """Return the middle value, when the values are sorted.
+    If there are an odd number of elements, try to average the middle two.
+    If they can't be averaged (e.g. they are strings), choose one at random.
+    >>> median([10, 100, 11])
+    11
+    >>> median([1, 2, 3, 4])
+    2.5
+    """
+    n = len(values)
+    values = sorted(values)
+    if n % 2 == 1:
+        return values[n/2]
+    else:
+        middle2 = values[(n/2)-1:(n/2)+1]
+        try:
+            return mean(middle2)
+        except TypeError:
+            return random.choice(middle2)
+
+def mean(values):
+    """Return the arithmetic average of the values."""
+    return sum(values) / float(len(values))
+
+def stddev(values, meanval=None):
+    """The standard deviation of a set of values.
+    Pass in the mean if you already know it."""
+    if meanval is None: meanval = mean(values)
+    return math.sqrt(sum([(x - meanval)**2 for x in values]) / (len(values)-1))
+
+def dotproduct(X, Y):
+    """Return the sum of the element-wise product of vectors x and y.
+    >>> dotproduct([1, 2, 3], [1000, 100, 10])
+    1230
+    """
+    return sum([x * y for x, y in zip(X, Y)])
+
+def vector_add(a, b):
+    """Component-wise addition of two vectors.
+    >>> vector_add((0, 1), (8, 9))
+    (8, 10)
+    """
+    return tuple(map(operator.add, a, b))
+
+def probability(p):
+    "Return true with probability p."
+    return p > random.uniform(0.0, 1.0)
+
+def weighted_sample_with_replacement(seq, weights, n):
+    """Pick n samples from seq at random, with replacement, with the
+    probability of each element in proportion to its corresponding
+    weight."""
+    sample = weighted_sampler(seq, weights)
+    return [sample() for s in range(n)]
+
+def weighted_sampler(seq, weights):
+    "Return a random-sample function that picks from seq weighted by weights."
+    totals = []
+    for w in weights:
+        totals.append(w + totals[-1] if totals else w)
+    return lambda: seq[bisect.bisect(totals, random.uniform(0, totals[-1]))]
+
+def num_or_str(x):
+    """The argument is a string; convert to a number if possible, or strip it.
+    >>> num_or_str('42')
+    42
+    >>> num_or_str(' 42x ')
+    '42x'
+    """
+    if isnumber(x): return x
+    try:
+        return int(x)
+    except ValueError:
+        try:
+            return float(x)
+        except ValueError:
+            return str(x).strip()
+
+def normalize(numbers):
+    """Multiply each number by a constant such that the sum is 1.0
+    >>> normalize([1,2,1])
+    [0.25, 0.5, 0.25]
+    """
+    total = float(sum(numbers))
+    return [n / total for n in numbers]
+
+def clip(x, lowest, highest):
+    """Return x clipped to the range [lowest..highest].
+    >>> [clip(x, 0, 1) for x in [-1, 0.5, 10]]
+    [0, 0.5, 1]
+    """
+    return max(lowest, min(x, highest))
+
+#______________________________________________________________________________
+## OK, the following are not as widely useful utilities as some of the other
+## functions here, but they do show up wherever we have 2D grids: Wumpus and
+## Vacuum worlds, TicTacToe and Checkers, and markov decision Processes.
+
+orientations = [(1, 0), (0, 1), (-1, 0), (0, -1)]
+
+def turn_heading(heading, inc, headings=orientations):
+    return headings[(headings.index(heading) + inc) % len(headings)]
+
+def turn_right(heading):
+    return turn_heading(heading, -1)
+
+def turn_left(heading):
+    return turn_heading(heading, +1)
+
+def distance((ax, ay), (bx, by)):
+    "The distance between two (x, y) points."
+    return math.hypot((ax - bx), (ay - by))
+
+def distance2((ax, ay), (bx, by)):
+    "The square of the distance between two (x, y) points."
+    return (ax - bx)**2 + (ay - by)**2
+
+def vector_clip(vector, lowest, highest):
+    """Return vector, except if any element is less than the corresponding
+    value of lowest or more than the corresponding value of highest, clip to
+    those values.
+    >>> vector_clip((-1, 10), (0, 0), (9, 9))
+    (0, 9)
+    """
+    return type(vector)(map(clip, vector, lowest, highest))
+
+#______________________________________________________________________________
+# Misc Functions
+
+def printf(format, *args):
+    """Format args with the first argument as format string, and write.
+    Return the last arg, or format itself if there are no args."""
+    sys.stdout.write(str(format) % args)
+    return if_(args, lambda: args[-1], lambda: format)
+
+def caller(n=1):
+    """Return the name of the calling function n levels up in the frame stack.
+    >>> caller(0)
+    'caller'
+    >>> def f():
+    ...     return caller()
+    >>> f()
+    'f'
+    """
+    import inspect
+    return inspect.getouterframes(inspect.currentframe())[n][3]
+
