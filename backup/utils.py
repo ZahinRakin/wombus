@@ -69,3 +69,103 @@ except NameError:
             yield seq[i]
 
 
+try: sorted ## Introduced in 2.4
+except NameError:
+    def sorted(seq, cmp=None, key=None, reverse=False):
+        """Copy seq and sort and return it.
+        >>> sorted([3, 1, 2])
+        [1, 2, 3]
+        """
+        seq2 = copy.copy(seq)
+        if key:
+            if cmp == None:
+                cmp = __builtins__.cmp
+            seq2.sort(lambda x,y: cmp(key(x), key(y)))
+        else:
+            if cmp == None:
+                seq2.sort()
+            else:
+                seq2.sort(cmp)
+        if reverse:
+            seq2.reverse()
+        return seq2
+
+try:
+    set, frozenset ## set builtin introduced in 2.4
+except NameError:
+    try:
+        import sets ## sets module introduced in 2.3
+        set, frozenset = sets.Set, sets.ImmutableSet
+    except (NameError, ImportError):
+        class BaseSet:
+            "set type (see http://docs.python.org/lib/types-set.html)"
+
+
+            def __init__(self, elements=[]):
+                self.dict = {}
+                for e in elements:
+                    self.dict[e] = 1
+
+            def __len__(self):
+                return len(self.dict)
+
+            def __iter__(self):
+                for e in self.dict:
+                    yield e
+
+            def __contains__(self, element):
+                return element in self.dict
+
+            def issubset(self, other):
+                for e in self.dict.keys():
+                    if e not in other:
+                        return False
+                return True
+
+            def issuperset(self, other):
+                for e in other:
+                    if e not in self:
+                        return False
+                return True
+
+
+            def union(self, other):
+                return type(self)(list(self) + list(other))
+
+            def intersection(self, other):
+                return type(self)([e for e in self.dict if e in other])
+
+            def difference(self, other):
+                return type(self)([e for e in self.dict if e not in other])
+
+            def symmetric_difference(self, other):
+                return type(self)([e for e in self.dict if e not in other] +
+                                  [e for e in other if e not in self.dict])
+
+            def copy(self):
+                return type(self)(self.dict)
+
+            def __repr__(self):
+                elements = ", ".join(map(str, self.dict))
+                return "%s([%s])" % (type(self).__name__, elements)
+
+            __le__ = issubset
+            __ge__ = issuperset
+            __or__ = union
+            __and__ = intersection
+            __sub__ = difference
+            __xor__ = symmetric_difference
+
+        class frozenset(BaseSet):
+            "A frozenset is a BaseSet that has a hash value and is immutable."
+
+            def __init__(self, elements=[]):
+                BaseSet.__init__(elements)
+                self.hash = 0
+                for e in self:
+                    self.hash |= hash(e)
+
+            def __hash__(self):
+                return self.hash
+
+       
